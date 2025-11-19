@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, MessageCircle, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { usePeerConnection } from "@/hooks/usePeerConnection";
+import IncomingCallModal from "@/components/IncomingCallModal";
+import VideoCallScreen from "@/components/VideoCallScreen";
 
 interface Profile {
   id: string;
@@ -24,6 +27,17 @@ const Profile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  
+  const {
+    startCall,
+    acceptCall,
+    declineCall,
+    endCall,
+    localStream,
+    remoteStream,
+    incomingCall,
+    isInCall,
+  } = usePeerConnection(currentUserId);
 
   useEffect(() => {
     fetchProfile();
@@ -116,6 +130,12 @@ const Profile = () => {
     }
   };
 
+  const handleStartCall = () => {
+    if (userId) {
+      startCall(userId);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center geometric-pattern">
@@ -133,7 +153,28 @@ const Profile = () => {
   }
 
   return (
-    <div className="min-h-screen geometric-pattern">
+    <>
+      {/* Incoming Call Modal */}
+      <IncomingCallModal
+        isOpen={!!incomingCall}
+        callerName={incomingCall?.callerName || ""}
+        callerAvatar={incomingCall?.callerAvatar || null}
+        onAccept={acceptCall}
+        onDecline={declineCall}
+      />
+
+      {/* Video Call Screen */}
+      <AnimatePresence>
+        {isInCall && (
+          <VideoCallScreen
+            localStream={localStream}
+            remoteStream={remoteStream}
+            onEndCall={endCall}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="min-h-screen geometric-pattern">
       {/* Header */}
       <header className="gradient-primary text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
@@ -194,6 +235,7 @@ const Profile = () => {
               Message
             </Button>
             <Button
+              onClick={handleStartCall}
               variant="outline"
               size="lg"
               className="border-primary text-primary hover:bg-primary/10"
@@ -205,6 +247,7 @@ const Profile = () => {
         </motion.div>
       </div>
     </div>
+    </>
   );
 };
 

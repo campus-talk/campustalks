@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     checkAuth();
@@ -13,10 +14,22 @@ const Index = () => {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {
-      navigate("/home");
+      // Check if profile is complete
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", session.user.id)
+        .single();
+
+      if (!profile?.username) {
+        navigate("/profile-setup");
+      } else {
+        navigate("/conversations");
+      }
     } else {
       navigate("/auth");
     }
+    setLoading(false);
   };
 
   return (

@@ -189,7 +189,7 @@ const Chat = () => {
             variant="ghost"
             size="icon"
             className="text-white hover:bg-white/20"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/conversations")}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
