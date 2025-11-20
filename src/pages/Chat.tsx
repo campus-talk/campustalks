@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Send, Paperclip, Check, CheckCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { EmojiPicker } from "@/components/EmojiPicker";
+
+interface Reaction {
+  id: string;
+  emoji: string;
+  user_id: string;
+}
 
 interface Message {
   id: string;
@@ -15,6 +22,7 @@ interface Message {
   sender_id: string;
   is_read: boolean;
   created_at: string;
+  reactions?: Reaction[];
 }
 
 interface Profile {
@@ -93,11 +101,24 @@ const Chat = () => {
       return;
     }
 
-    setMessages(data || []);
+    // Load reactions for each message
+    if (data) {
+      const messagesWithReactions = await Promise.all(
+        data.map(async (msg) => {
+          const { data: reactions } = await supabase
+            .from("message_reactions")
+            .select("id, emoji, user_id")
+            .eq("message_id", msg.id);
+          
+          return { ...msg, reactions: reactions || [] };
+        })
+      );
+      setMessages(messagesWithReactions);
+    }
   };
 
   const subscribeToMessages = () => {
-    const channel = supabase
+    const messagesChannel = supabase
       .channel(`messages:${conversationId}`)
       .on(
         "postgres_changes",
@@ -108,13 +129,30 @@ const Chat = () => {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          setMessages((prev) => [...prev, { ...(payload.new as Message), reactions: [] }]);
+        }
+      )
+      .subscribe();
+
+    const reactionsChannel = supabase
+      .channel(`reactions:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_reactions",
+        },
+        () => {
+          // Reload messages when reactions change
+          loadMessages();
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(reactionsChannel);
     };
   };
 
@@ -142,6 +180,39 @@ const Chat = () => {
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleReaction = async (messageId: string, emoji: string) => {
+    try {
+      // Check if user already reacted with this emoji
+      const message = messages.find(m => m.id === messageId);
+      const existingReaction = message?.reactions?.find(
+        r => r.user_id === currentUserId && r.emoji === emoji
+      );
+
+      if (existingReaction) {
+        // Remove reaction
+        await supabase
+          .from("message_reactions")
+          .delete()
+          .eq("id", existingReaction.id);
+      } else {
+        // Add reaction
+        await supabase
+          .from("message_reactions")
+          .insert({
+            message_id: messageId,
+            user_id: currentUserId,
+            emoji,
+          });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     }
   };
 
@@ -209,43 +280,99 @@ const Chat = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => {
           const isSent = message.sender_id === currentUserId;
+          const isImage = message.message_type === "image";
+
+          // Group reactions by emoji with count
+          const reactionGroups = message.reactions?.reduce((acc, reaction) => {
+            if (!acc[reaction.emoji]) {
+              acc[reaction.emoji] = {
+                count: 0,
+                userIds: [],
+              };
+            }
+            acc[reaction.emoji].count++;
+            acc[reaction.emoji].userIds.push(reaction.user_id);
+            return acc;
+          }, {} as Record<string, { count: number; userIds: string[] }>);
+
           return (
             <motion.div
               key={message.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex ${isSent ? "justify-end" : "justify-start"}`}
+              className={`flex ${isSent ? "justify-end" : "justify-start"} mb-4 group`}
             >
-              <div
-                className={`max-w-[70%] rounded-2xl px-4 py-3 ${
-                  isSent
-                    ? "chat-bubble-sent text-white rounded-br-sm"
-                    : "chat-bubble-received text-foreground rounded-bl-sm"
-                }`}
-              >
-                {message.message_type === "image" ? (
-                  <img
-                    src={message.content}
-                    alt="Shared image"
-                    className="rounded-lg max-w-full"
-                  />
-                ) : (
-                  <p className="break-words">{message.content}</p>
+              <div className={`max-w-[70%] ${isSent ? "" : "flex items-start gap-2"}`}>
+                {!isSent && (
+                  <Avatar className="w-8 h-8 flex-shrink-0">
+                    <AvatarImage src={otherUser?.avatar_url || ""} />
+                    <AvatarFallback className="bg-gradient-primary text-white text-sm">
+                      {otherUser?.full_name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
                 )}
-                <div className={`flex items-center gap-1 mt-1 text-xs ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
-                  <span>
-                    {new Date(message.created_at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  {isSent && (
-                    message.is_read ? (
-                      <CheckCheck className="w-4 h-4 text-blue-300" />
+
+                <div className="relative">
+                  <div
+                    className={`rounded-2xl px-4 py-3 ${
+                      isSent
+                        ? "chat-bubble-sent text-white rounded-br-sm"
+                        : "chat-bubble-received text-foreground rounded-bl-sm"
+                    }`}
+                  >
+                    {isImage ? (
+                      <img
+                        src={message.content}
+                        alt="Shared image"
+                        className="rounded-lg max-w-full"
+                      />
                     ) : (
-                      <Check className="w-4 h-4" />
-                    )
+                      <p className="break-words">{message.content}</p>
+                    )}
+                    <div className={`flex items-center gap-1 mt-1 text-xs ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
+                      <span>
+                        {new Date(message.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {isSent && (
+                        message.is_read ? (
+                          <CheckCheck className="w-4 h-4 text-blue-300" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reactions Display */}
+                  {reactionGroups && Object.keys(reactionGroups).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(reactionGroups).map(([emoji, data]) => {
+                        const userReacted = data.userIds.includes(currentUserId);
+                        return (
+                          <button
+                            key={emoji}
+                            onClick={() => handleReaction(message.id, emoji)}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-sm transition-all ${
+                              userReacted
+                                ? "bg-primary/20 border border-primary"
+                                : "bg-background/80 border border-border hover:bg-primary/10"
+                            }`}
+                          >
+                            <span>{emoji}</span>
+                            <span className="text-xs">{data.count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
+
+                  {/* Emoji Picker - Shows on hover */}
+                  <div className={`absolute top-0 ${isSent ? "left-0 -translate-x-full -ml-2" : "right-0 translate-x-full mr-2"}`}>
+                    <EmojiPicker onEmojiSelect={(emoji) => handleReaction(message.id, emoji)} />
+                  </div>
                 </div>
               </div>
             </motion.div>
