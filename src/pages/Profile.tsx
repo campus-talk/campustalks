@@ -30,9 +30,15 @@ const Profile = () => {
   
   const {
     startCall,
+    startAudioCall,
     acceptCall,
     declineCall,
     endCall,
+    toggleCamera,
+    toggleMic,
+    isCameraOn,
+    isMicOn,
+    isVideoCall,
     localStream,
     remoteStream,
     incomingCall,
@@ -170,6 +176,11 @@ const Profile = () => {
             localStream={localStream}
             remoteStream={remoteStream}
             onEndCall={endCall}
+            onToggleCamera={toggleCamera}
+            onToggleMic={toggleMic}
+            isCameraOn={isCameraOn}
+            isMicOn={isMicOn}
+            isVideoCall={isVideoCall}
           />
         )}
       </AnimatePresence>

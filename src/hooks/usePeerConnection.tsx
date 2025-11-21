@@ -14,6 +14,9 @@ export const usePeerConnection = (currentUserId: string) => {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [incomingCall, setIncomingCall] = useState<CallNotification | null>(null);
   const currentCallRef = useRef<MediaConnection | null>(null);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isVideoCall, setIsVideoCall] = useState(true);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -52,11 +55,15 @@ export const usePeerConnection = (currentUserId: string) => {
     };
   }, [currentUserId]);
 
-  const startCall = async (remoteUserId: string) => {
+  const startCall = async (remoteUserId: string, videoEnabled = true) => {
     try {
+      setIsVideoCall(videoEnabled);
+      setIsCameraOn(videoEnabled);
+      setIsMicOn(true);
+
       // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: videoEnabled,
         audio: true,
       });
       setLocalStream(stream);
@@ -80,10 +87,18 @@ export const usePeerConnection = (currentUserId: string) => {
     }
   };
 
+  const startAudioCall = async (remoteUserId: string) => {
+    await startCall(remoteUserId, false);
+  };
+
   const acceptCall = async () => {
     if (!currentCallRef.current) return;
 
     try {
+      setIsVideoCall(true);
+      setIsCameraOn(true);
+      setIsMicOn(true);
+
       // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -115,6 +130,26 @@ export const usePeerConnection = (currentUserId: string) => {
     setIncomingCall(null);
   };
 
+  const toggleCamera = async () => {
+    if (!localStream) return;
+
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      setIsCameraOn(videoTrack.enabled);
+    }
+  };
+
+  const toggleMic = () => {
+    if (!localStream) return;
+
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setIsMicOn(audioTrack.enabled);
+    }
+  };
+
   const endCall = () => {
     // Stop all tracks
     localStream?.getTracks().forEach((track) => track.stop());
@@ -126,13 +161,22 @@ export const usePeerConnection = (currentUserId: string) => {
 
     setLocalStream(null);
     setRemoteStream(null);
+    setIsCameraOn(true);
+    setIsMicOn(true);
+    setIsVideoCall(true);
   };
 
   return {
     startCall,
+    startAudioCall,
     acceptCall,
     declineCall,
     endCall,
+    toggleCamera,
+    toggleMic,
+    isCameraOn,
+    isMicOn,
+    isVideoCall,
     localStream,
     remoteStream,
     incomingCall,
