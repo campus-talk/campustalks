@@ -36,6 +36,7 @@ const Profile = () => {
     endCall,
     toggleCamera,
     toggleMic,
+    switchCamera,
     isCameraOn,
     isMicOn,
     isVideoCall,
@@ -175,9 +176,10 @@ const Profile = () => {
           <VideoCallScreen
             localStream={localStream}
             remoteStream={remoteStream}
-            onEndCall={endCall}
-            onToggleCamera={toggleCamera}
-            onToggleMic={toggleMic}
+        onEndCall={endCall}
+        onToggleCamera={toggleCamera}
+        onToggleMic={toggleMic}
+        onSwitchCamera={switchCamera}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}

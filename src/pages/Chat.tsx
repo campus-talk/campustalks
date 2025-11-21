@@ -53,6 +53,7 @@ const Chat = () => {
     endCall,
     toggleCamera,
     toggleMic,
+    switchCamera,
     isCameraOn,
     isMicOn,
     isVideoCall,
@@ -288,9 +289,10 @@ const Chat = () => {
           <VideoCallScreen
             localStream={localStream}
             remoteStream={remoteStream}
-            onEndCall={endCall}
-            onToggleCamera={toggleCamera}
-            onToggleMic={toggleMic}
+        onEndCall={endCall}
+        onToggleCamera={toggleCamera}
+        onToggleMic={toggleMic}
+        onSwitchCamera={switchCamera}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}
