@@ -1,13 +1,16 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Send, Paperclip, Check, CheckCheck } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { usePeerConnection } from "@/hooks/usePeerConnection";
+import IncomingCallModal from "@/components/IncomingCallModal";
+import VideoCallScreen from "@/components/VideoCallScreen";
 
 interface Reaction {
   id: string;
@@ -41,6 +44,23 @@ const Chat = () => {
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const {
+    startCall,
+    startAudioCall,
+    acceptCall,
+    declineCall,
+    endCall,
+    toggleCamera,
+    toggleMic,
+    isCameraOn,
+    isMicOn,
+    isVideoCall,
+    localStream,
+    remoteStream,
+    incomingCall,
+    isInCall,
+  } = usePeerConnection(currentUserId);
 
   useEffect(() => {
     initializeChat();
@@ -252,32 +272,74 @@ const Chat = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col geometric-pattern">
-      {/* Header */}
-      <header className="gradient-primary text-white p-4 shadow-lg flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/20"
-            onClick={() => navigate("/conversations")}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <Avatar className="w-10 h-10 border-2 border-white/30">
-            <AvatarImage src={otherUser?.avatar_url || ""} />
-            <AvatarFallback className="bg-white/20 text-white">
-              {otherUser?.full_name.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <h2 className="font-semibold">{otherUser?.full_name}</h2>
-          </div>
-        </div>
-      </header>
+    <>
+      {/* Incoming Call Modal */}
+      <IncomingCallModal
+        isOpen={!!incomingCall}
+        callerName={incomingCall?.callerName || ""}
+        callerAvatar={incomingCall?.callerAvatar || null}
+        onAccept={acceptCall}
+        onDecline={declineCall}
+      />
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Video Call Screen */}
+      <AnimatePresence>
+        {isInCall && (
+          <VideoCallScreen
+            localStream={localStream}
+            remoteStream={remoteStream}
+            onEndCall={endCall}
+            onToggleCamera={toggleCamera}
+            onToggleMic={toggleMic}
+            isCameraOn={isCameraOn}
+            isMicOn={isMicOn}
+            isVideoCall={isVideoCall}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="h-screen flex flex-col geometric-pattern">
+        {/* Header */}
+        <header className="gradient-primary text-white p-4 shadow-lg flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => navigate("/conversations")}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <Avatar className="w-10 h-10 border-2 border-white/30">
+              <AvatarImage src={otherUser?.avatar_url || ""} alt={otherUser?.full_name} />
+              <AvatarFallback className="bg-white/20 text-white">
+                {otherUser?.full_name?.charAt(0) || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h2 className="font-semibold">{otherUser?.full_name}</h2>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => otherUser && startCall(otherUser.id)}
+            >
+              <Video className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => otherUser && startAudioCall(otherUser.id)}
+            >
+              <Phone className="w-5 h-5" />
+            </Button>
+          </div>
+        </header>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
         {messages.map((message) => {
           const isSent = message.sender_id === currentUserId;
           const isImage = message.message_type === "image";
@@ -378,11 +440,11 @@ const Chat = () => {
             </motion.div>
           );
         })}
-        <div ref={messagesEndRef} />
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
 
-      {/* Input */}
-      <div className="glass-effect border-t border-border p-4 flex-shrink-0">
+        {/* Input */}
+        <div className="glass-effect border-t border-border p-3 flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-3">
           <input
             type="file"
@@ -406,17 +468,18 @@ const Chat = () => {
             placeholder="Type a message..."
             className="flex-1 bg-background/50"
           />
-          <Button
-            type="submit"
-            disabled={sending || !newMessage.trim()}
-            className="gradient-primary hover:gradient-primary-hover text-white flex-shrink-0"
-            size="icon"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
-        </form>
+            <Button
+              type="submit"
+              disabled={sending || !newMessage.trim()}
+              className="gradient-primary hover:gradient-primary-hover text-white flex-shrink-0"
+              size="icon"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

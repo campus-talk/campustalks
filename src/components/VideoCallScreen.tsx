@@ -1,21 +1,32 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { PhoneOff } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface VideoCallScreenProps {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   onEndCall: () => void;
+  onToggleCamera: () => void;
+  onToggleMic: () => void;
+  isCameraOn: boolean;
+  isMicOn: boolean;
+  isVideoCall: boolean;
 }
 
 const VideoCallScreen = ({
   localStream,
   remoteStream,
   onEndCall,
+  onToggleCamera,
+  onToggleMic,
+  isCameraOn,
+  isMicOn,
+  isVideoCall,
 }: VideoCallScreenProps) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -27,7 +38,11 @@ const VideoCallScreen = ({
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+    // For audio calls, use audio element
+    if (remoteAudioRef.current && remoteStream && !isVideoCall) {
+      remoteAudioRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream, isVideoCall]);
 
   return (
     <motion.div
@@ -37,26 +52,76 @@ const VideoCallScreen = ({
       className="fixed inset-0 bg-black z-50"
     >
       {/* Remote Video (Full Screen) */}
-      <video
-        ref={remoteVideoRef}
-        autoPlay
-        playsInline
-        className="w-full h-full object-cover"
-      />
-
-      {/* Local Video (Floating) */}
-      <div className="absolute top-4 right-4 w-32 h-48 rounded-2xl overflow-hidden border-2 border-white/30 shadow-lg">
+      {isVideoCall ? (
         <video
-          ref={localVideoRef}
+          ref={remoteVideoRef}
           autoPlay
           playsInline
-          muted
           className="w-full h-full object-cover"
         />
-      </div>
+      ) : (
+        <>
+          <audio ref={remoteAudioRef} autoPlay />
+          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-32 h-32 rounded-full bg-primary/30 mx-auto mb-4 flex items-center justify-center">
+                <Mic className="w-16 h-16 text-white" />
+              </div>
+              <p className="text-white text-lg">Audio Call</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Local Video (Floating) */}
+      {isVideoCall && (
+        <div className="absolute top-4 right-4 w-32 h-48 rounded-2xl overflow-hidden border-2 border-white/30 shadow-lg bg-black">
+          {isCameraOn ? (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-900">
+              <VideoOff className="w-8 h-8 text-white" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Controls */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4">
+        {isVideoCall && (
+          <Button
+            onClick={onToggleCamera}
+            size="lg"
+            variant={isCameraOn ? "secondary" : "destructive"}
+            className="rounded-full w-14 h-14 p-0"
+          >
+            {isCameraOn ? (
+              <Video className="w-5 h-5" />
+            ) : (
+              <VideoOff className="w-5 h-5" />
+            )}
+          </Button>
+        )}
+        
+        <Button
+          onClick={onToggleMic}
+          size="lg"
+          variant={isMicOn ? "secondary" : "destructive"}
+          className="rounded-full w-14 h-14 p-0"
+        >
+          {isMicOn ? (
+            <Mic className="w-5 h-5" />
+          ) : (
+            <MicOff className="w-5 h-5" />
+          )}
+        </Button>
+
         <Button
           onClick={onEndCall}
           size="lg"
