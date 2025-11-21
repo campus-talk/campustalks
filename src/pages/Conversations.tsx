@@ -4,8 +4,9 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search, Settings, Bell } from "lucide-react";
+import { Search, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import BottomNav from "@/components/BottomNav";
 
 interface Conversation {
   id: string;
@@ -183,40 +184,31 @@ const Conversations = () => {
   }
 
   return (
-    <div className="min-h-screen geometric-pattern">
+    <div className="min-h-screen geometric-pattern pb-20">
       {/* Header */}
-      <header className="gradient-primary text-white p-6 shadow-lg sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">FamilyConnect</h1>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 relative"
-              >
-                <Bell className="w-5 h-5" />
-                {totalUnread > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {totalUnread > 9 ? "9+" : totalUnread}
-                  </span>
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-                onClick={() => navigate("/settings")}
-              >
-                <Settings className="w-5 h-5" />
-              </Button>
-            </div>
+      <header className="gradient-primary text-white p-6 shadow-lg">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Chats</h1>
+          <div className="flex gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => navigate("/search")}
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={handleSignOut}
+            >
+              <LogOut className="w-5 h-5" />
+            </Button>
           </div>
-          <Button
-            onClick={() => navigate("/search")}
-            className="w-full bg-white/20 hover:bg-white/30 text-white justify-start"
-          >
-            <Search className="w-5 h-5 mr-2" />
+        </div>
+      </header>
             Search people...
           </Button>
         </div>

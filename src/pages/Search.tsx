@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -25,37 +25,42 @@ const Search = () => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
 
     setSearching(true);
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .or(`username.ilike.%${searchQuery}%,unique_key.ilike.%${searchQuery}%`)
+        .or(`username.ilike.${query}%,full_name.ilike.${query}%,unique_key.ilike.${query}%`)
         .limit(20);
 
       if (error) throw error;
 
       setResults(data || []);
-
-      if (data?.length === 0) {
-        toast({
-          title: "No results",
-          description: "Try searching with a different username or unique code",
-        });
-      }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message,
       });
+      setResults([]);
     } finally {
       setSearching(false);
     }
   };
+
+  useEffect(() => {
+    const delaySearch = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(delaySearch);
+  }, [searchQuery]);
 
   return (
     <div className="min-h-screen geometric-pattern">
@@ -84,19 +89,16 @@ const Search = () => {
           <div className="flex gap-3">
             <Input
               type="text"
-              placeholder="Search by @username or unique code (FC-XXXX)"
+              placeholder="Search by name, @username or code"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
               className="flex-1 bg-background/50"
             />
-            <Button
-              onClick={handleSearch}
-              disabled={searching}
-              className="gradient-primary hover:gradient-primary-hover text-white"
-            >
-              <SearchIcon className="w-5 h-5" />
-            </Button>
+            {searching && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
           </div>
         </motion.div>
 

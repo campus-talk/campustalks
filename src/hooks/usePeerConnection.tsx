@@ -17,6 +17,7 @@ export const usePeerConnection = (currentUserId: string) => {
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoCall, setIsVideoCall] = useState(true);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -32,6 +33,10 @@ export const usePeerConnection = (currentUserId: string) => {
     // Handle incoming calls
     peer.on("call", async (call) => {
       console.log("Incoming call from:", call.peer);
+      
+      // Check if it's a video or audio call from metadata
+      const isVideo = call.metadata?.isVideoCall !== false;
+      setIsVideoCall(isVideo);
       
       // Fetch caller info
       const { data: callerProfile } = await supabase
@@ -61,15 +66,26 @@ export const usePeerConnection = (currentUserId: string) => {
       setIsCameraOn(videoEnabled);
       setIsMicOn(true);
 
-      // Get local media stream
+      // Get local media stream with higher quality
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoEnabled,
-        audio: true,
+        video: videoEnabled ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: facingMode,
+          frameRate: { ideal: 30 }
+        } : false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
       });
       setLocalStream(stream);
 
-      // Call the remote peer
-      const call = peerRef.current?.call(remoteUserId, stream);
+      // Call the remote peer with metadata about call type
+      const call = peerRef.current?.call(remoteUserId, stream, {
+        metadata: { isVideoCall: videoEnabled }
+      });
       if (!call) return;
 
       currentCallRef.current = call;
@@ -95,14 +111,23 @@ export const usePeerConnection = (currentUserId: string) => {
     if (!currentCallRef.current) return;
 
     try {
-      setIsVideoCall(true);
-      setIsCameraOn(true);
+      const callIsVideo = currentCallRef.current.metadata?.isVideoCall !== false;
+      setIsCameraOn(callIsVideo);
       setIsMicOn(true);
 
-      // Get local media stream
+      // Get local media stream based on call type
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: callIsVideo ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: facingMode,
+          frameRate: { ideal: 30 }
+        } : false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
       });
       setLocalStream(stream);
 
@@ -140,6 +165,46 @@ export const usePeerConnection = (currentUserId: string) => {
     }
   };
 
+  const switchCamera = async () => {
+    if (!localStream || !isVideoCall) return;
+
+    try {
+      const newFacingMode = facingMode === "user" ? "environment" : "user";
+      
+      // Stop current video track
+      localStream.getVideoTracks().forEach(track => track.stop());
+
+      // Get new stream with switched camera
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: newFacingMode,
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      });
+
+      // Replace video track
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const sender = currentCallRef.current?.peerConnection
+        ?.getSenders()
+        .find(s => s.track?.kind === 'video');
+      
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack);
+      }
+
+      // Update local stream
+      const audioTrack = localStream.getAudioTracks()[0];
+      const updatedStream = new MediaStream([newVideoTrack, audioTrack]);
+      setLocalStream(updatedStream);
+      setFacingMode(newFacingMode);
+    } catch (error) {
+      console.error("Error switching camera:", error);
+    }
+  };
+
   const toggleMic = () => {
     if (!localStream) return;
 
@@ -174,6 +239,7 @@ export const usePeerConnection = (currentUserId: string) => {
     endCall,
     toggleCamera,
     toggleMic,
+    switchCamera,
     isCameraOn,
     isMicOn,
     isVideoCall,

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { PhoneOff, Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Video, VideoOff, SwitchCamera, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface VideoCallScreenProps {
@@ -9,6 +9,7 @@ interface VideoCallScreenProps {
   onEndCall: () => void;
   onToggleCamera: () => void;
   onToggleMic: () => void;
+  onSwitchCamera?: () => void;
   isCameraOn: boolean;
   isMicOn: boolean;
   isVideoCall: boolean;
@@ -20,6 +21,7 @@ const VideoCallScreen = ({
   onEndCall,
   onToggleCamera,
   onToggleMic,
+  onSwitchCamera,
   isCameraOn,
   isMicOn,
   isVideoCall,
@@ -27,6 +29,7 @@ const VideoCallScreen = ({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const [isLocalExpanded, setIsLocalExpanded] = useState(false);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -44,6 +47,10 @@ const VideoCallScreen = ({
     }
   }, [remoteStream, isVideoCall]);
 
+  const handleSwapVideos = () => {
+    setIsLocalExpanded(!isLocalExpanded);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -51,14 +58,51 @@ const VideoCallScreen = ({
       exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black z-50"
     >
-      {/* Remote Video (Full Screen) */}
+      {/* Main Video Display */}
       {isVideoCall ? (
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="w-full h-full object-cover"
-        />
+        <>
+          <video
+            ref={isLocalExpanded ? localVideoRef : remoteVideoRef}
+            autoPlay
+            playsInline
+            muted={isLocalExpanded}
+            className="w-full h-full object-cover"
+          />
+          
+          {/* Floating Small Video */}
+          <div 
+            onClick={handleSwapVideos}
+            className="absolute top-4 right-4 w-32 h-48 rounded-2xl overflow-hidden border-2 border-white/30 shadow-lg bg-black cursor-pointer hover:border-white/50 transition-all"
+          >
+            {isLocalExpanded ? (
+              remoteStream && (
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              )
+            ) : (
+              isCameraOn ? (
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                  <VideoOff className="w-8 h-8 text-white" />
+                </div>
+              )
+            )}
+            <div className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1">
+              <Maximize2 className="w-4 h-4 text-white" />
+            </div>
+          </div>
+        </>
       ) : (
         <>
           <audio ref={remoteAudioRef} autoPlay />
@@ -73,27 +117,19 @@ const VideoCallScreen = ({
         </>
       )}
 
-      {/* Local Video (Floating) */}
-      {isVideoCall && (
-        <div className="absolute top-4 right-4 w-32 h-48 rounded-2xl overflow-hidden border-2 border-white/30 shadow-lg bg-black">
-          {isCameraOn ? (
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-900">
-              <VideoOff className="w-8 h-8 text-white" />
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Controls */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4">
+        {isVideoCall && onSwitchCamera && (
+          <Button
+            onClick={onSwitchCamera}
+            size="lg"
+            variant="secondary"
+            className="rounded-full w-14 h-14 p-0"
+          >
+            <SwitchCamera className="w-5 h-5" />
+          </Button>
+        )}
+
         {isVideoCall && (
           <Button
             onClick={onToggleCamera}
