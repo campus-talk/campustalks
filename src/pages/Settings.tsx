@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Camera, Save } from "lucide-react";
+import { ArrowLeft, Camera, Save, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -117,7 +117,7 @@ const Settings = () => {
         description: "Your changes have been saved.",
       });
 
-      navigate("/home");
+      navigate("/");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -127,6 +127,11 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
   };
 
   return (
@@ -239,6 +244,16 @@ const Settings = () => {
             >
               <Save className="w-5 h-5 mr-2" />
               {loading ? "Saving..." : "Save Changes"}
+            </Button>
+
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              className="w-full"
+              size="lg"
+            >
+              <LogOut className="w-5 h-5 mr-2" />
+              Logout
             </Button>
           </div>
         </motion.div>
