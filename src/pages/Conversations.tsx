@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search, LogOut } from "lucide-react";
+import { Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 
@@ -175,6 +175,11 @@ const Conversations = () => {
     return date.toLocaleDateString();
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center geometric-pattern">
@@ -189,27 +194,13 @@ const Conversations = () => {
       <header className="gradient-primary text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">Chats</h1>
-          <div className="flex gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20"
-              onClick={() => navigate("/search")}
-            >
-              <Search className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-      </header>
-            Search people...
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/20"
+            onClick={() => navigate("/search")}
+          >
+            <Search className="w-5 h-5" />
           </Button>
         </div>
       </header>
@@ -278,6 +269,8 @@ const Conversations = () => {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 };
