@@ -24,6 +24,12 @@ const MessageContextMenu = ({
 }: MessageContextMenuProps) => {
   if (!isOpen) return null;
 
+  // Calculate centered position
+  const menuWidth = 200;
+  const menuHeight = 220;
+  const centerX = Math.max(20, Math.min(window.innerWidth - menuWidth - 20, (window.innerWidth - menuWidth) / 2));
+  const centerY = Math.max(20, Math.min(window.innerHeight - menuHeight - 20, position.y - menuHeight / 2));
+
   return (
     <>
       <div
@@ -34,11 +40,11 @@ const MessageContextMenu = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.1 }}
-        className="fixed z-50 glass-effect rounded-xl shadow-xl border border-border/50 py-2 min-w-[180px]"
+        transition={{ duration: 0.15 }}
+        className="fixed z-50 glass-effect rounded-xl shadow-xl border border-border/50 py-2 w-[200px]"
         style={{
-          top: `${position.y}px`,
-          left: `${position.x}px`,
+          top: `${centerY}px`,
+          left: `${centerX}px`,
         }}
       >
         <button

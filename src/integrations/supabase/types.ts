@@ -50,20 +50,108 @@ export type Database = {
       conversations: {
         Row: {
           created_at: string | null
+          group_id: string | null
           id: string
+          is_group: boolean | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          group_id?: string | null
           id?: string
+          is_group?: boolean | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          group_id?: string | null
           id?: string
+          is_group?: boolean | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string | null
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string | null
+          role?: string | null
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string | null
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "groups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       message_reactions: {
         Row: {
@@ -109,27 +197,33 @@ export type Database = {
           content: string
           conversation_id: string
           created_at: string | null
+          deleted_for_everyone: boolean | null
           id: string
           is_read: boolean | null
           message_type: string | null
+          reply_to: string | null
           sender_id: string
         }
         Insert: {
           content: string
           conversation_id: string
           created_at?: string | null
+          deleted_for_everyone?: boolean | null
           id?: string
           is_read?: boolean | null
           message_type?: string | null
+          reply_to?: string | null
           sender_id: string
         }
         Update: {
           content?: string
           conversation_id?: string
           created_at?: string | null
+          deleted_for_everyone?: boolean | null
           id?: string
           is_read?: boolean | null
           message_type?: string | null
+          reply_to?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -138,6 +232,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
           {
