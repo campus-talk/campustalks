@@ -4,13 +4,20 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
+import { Search, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
+import CreateGroupDialog from "@/components/CreateGroupDialog";
 
 interface Conversation {
   id: string;
-  otherUser: {
+  is_group?: boolean;
+  group?: {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+  };
+  otherUser?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
@@ -33,6 +40,7 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
   const [totalUnread, setTotalUnread] = useState(0);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
   useEffect(() => {
     fetchConversations();
@@ -64,7 +72,13 @@ const Conversations = () => {
         return;
       }
 
-      // Get all participants for these conversations
+      // Get conversations with group info
+      const { data: convs } = await supabase
+        .from("conversations")
+        .select("id, is_group, group_id")
+        .in("id", conversationIds);
+
+      // Get all participants
       const { data: allParticipants } = await supabase
         .from("conversation_participants")
         .select("conversation_id, user_id")
@@ -80,11 +94,18 @@ const Conversations = () => {
         .select("id, full_name, avatar_url, status")
         .in("id", otherUserIds);
 
-      // Get last message for each conversation
+      // Get groups
+      const groupIds = convs?.filter(c => c.is_group && c.group_id).map(c => c.group_id!) || [];
+      const { data: groups } = groupIds.length > 0 ? await supabase
+        .from("groups")
+        .select("id, name, avatar_url")
+        .in("id", groupIds) : { data: [] };
+
       const conversationsData: Conversation[] = [];
       let unreadTotal = 0;
 
       for (const convId of conversationIds) {
+        const conv = convs?.find(c => c.id === convId);
         const { data: messages } = await supabase
           .from("messages")
           .select("*")
@@ -92,7 +113,6 @@ const Conversations = () => {
           .order("created_at", { ascending: false })
           .limit(1);
 
-        // Count unread messages
         const { count } = await supabase
           .from("messages")
           .select("*", { count: "exact", head: true })
@@ -100,22 +120,35 @@ const Conversations = () => {
           .eq("is_read", false)
           .neq("sender_id", userId);
 
-        const otherUserId = allParticipants?.find(
-          (p) => p.conversation_id === convId && p.user_id !== userId
-        )?.user_id;
+        const unreadCount = count || 0;
+        unreadTotal += unreadCount;
 
-        const otherUser = profiles?.find((p) => p.id === otherUserId);
-
-        if (otherUser) {
-          const unreadCount = count || 0;
-          unreadTotal += unreadCount;
-
-          conversationsData.push({
-            id: convId,
-            otherUser,
-            lastMessage: messages?.[0] || null,
-            unreadCount,
-          });
+        if (conv?.is_group) {
+          const group = groups?.find(g => g.id === conv.group_id);
+          if (group) {
+            conversationsData.push({
+              id: convId,
+              is_group: true,
+              group,
+              lastMessage: messages?.[0] || null,
+              unreadCount,
+            });
+          }
+        } else {
+          const otherUserId = allParticipants?.find(
+            (p) => p.conversation_id === convId && p.user_id !== userId
+          )?.user_id;
+          const otherUser = profiles?.find((p) => p.id === otherUserId);
+          
+          if (otherUser) {
+            conversationsData.push({
+              id: convId,
+              is_group: false,
+              otherUser,
+              lastMessage: messages?.[0] || null,
+              unreadCount,
+            });
+          }
         }
       }
 
@@ -194,16 +227,32 @@ const Conversations = () => {
       <header className="gradient-primary text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">Chats</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/20"
-            onClick={() => navigate("/search")}
-          >
-            <Search className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => setCreateGroupOpen(true)}
+            >
+              <Users className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => navigate("/search")}
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
+
+      <CreateGroupDialog
+        open={createGroupOpen}
+        onOpenChange={setCreateGroupOpen}
+        currentUserId={currentUserId}
+      />
 
       {/* Conversations List */}
       <div className="max-w-7xl mx-auto">
@@ -232,16 +281,16 @@ const Conversations = () => {
                 className="flex items-center gap-4 p-4 hover:bg-accent/50 cursor-pointer transition-colors"
               >
                 <Avatar className="w-14 h-14 border-2 border-primary/20">
-                  <AvatarImage src={conv.otherUser.avatar_url || ""} />
+                  <AvatarImage src={conv.is_group ? conv.group?.avatar_url || "" : conv.otherUser?.avatar_url || ""} />
                   <AvatarFallback className="bg-gradient-primary text-white text-xl">
-                    {conv.otherUser.full_name.charAt(0)}
+                    {conv.is_group ? conv.group?.name.charAt(0) : conv.otherUser?.full_name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="font-semibold truncate">
-                      {conv.otherUser.full_name}
+                      {conv.is_group ? conv.group?.name : conv.otherUser?.full_name}
                     </h3>
                     {conv.lastMessage && (
                       <span className="text-xs text-muted-foreground">
