@@ -18,6 +18,26 @@ export const usePeerConnection = (currentUserId: string) => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoCall, setIsVideoCall] = useState(true);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const incomingRingtone = useRef<HTMLAudioElement | null>(null);
+  const outgoingRingtone = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize ringtones
+  useEffect(() => {
+    incomingRingtone.current = new Audio('/ringtones/incoming-call.mp3');
+    outgoingRingtone.current = new Audio('/ringtones/outgoing-call.mp3');
+    incomingRingtone.current.loop = true;
+    outgoingRingtone.current.loop = true;
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      incomingRingtone.current?.pause();
+      outgoingRingtone.current?.pause();
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -34,6 +54,9 @@ export const usePeerConnection = (currentUserId: string) => {
     peer.on("call", async (call) => {
       console.log("Incoming call from:", call.peer);
       
+      // Play incoming ringtone
+      incomingRingtone.current?.play().catch(e => console.log("Ringtone play failed:", e));
+
       // Check if it's a video or audio call from metadata
       const isVideo = call.metadata?.isVideoCall !== false;
       setIsVideoCall(isVideo);
@@ -51,6 +74,14 @@ export const usePeerConnection = (currentUserId: string) => {
         callerAvatar: callerProfile?.avatar_url || null,
       });
 
+      // Show notification if permission granted
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`Incoming call from ${callerProfile?.full_name || "Unknown"}`, {
+          icon: callerProfile?.avatar_url || undefined,
+          tag: 'incoming-call',
+        });
+      }
+
       // Store the call reference
       currentCallRef.current = call;
     });
@@ -62,22 +93,27 @@ export const usePeerConnection = (currentUserId: string) => {
 
   const startCall = async (remoteUserId: string, videoEnabled = true) => {
     try {
+      // Play outgoing ringtone
+      outgoingRingtone.current?.play().catch(e => console.log("Ringtone play failed:", e));
+
       setIsVideoCall(videoEnabled);
       setIsCameraOn(videoEnabled);
       setIsMicOn(true);
 
-      // Get local media stream with higher quality
+      // Get local media stream with highest quality
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoEnabled ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { min: 640, ideal: 1920, max: 1920 },
+          height: { min: 480, ideal: 1080, max: 1080 },
           facingMode: facingMode,
-          frameRate: { ideal: 30 }
+          frameRate: { min: 24, ideal: 60, max: 60 }
         } : false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 2
         },
       });
       setLocalStream(stream);
@@ -92,6 +128,9 @@ export const usePeerConnection = (currentUserId: string) => {
 
       call.on("stream", (remoteStream) => {
         console.log("Received remote stream");
+        // Stop outgoing ringtone when call connects
+        outgoingRingtone.current?.pause();
+        if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
         setRemoteStream(remoteStream);
       });
 
@@ -110,23 +149,29 @@ export const usePeerConnection = (currentUserId: string) => {
   const acceptCall = async () => {
     if (!currentCallRef.current) return;
 
+    // Stop incoming ringtone
+    incomingRingtone.current?.pause();
+    if (incomingRingtone.current) incomingRingtone.current.currentTime = 0;
+
     try {
       const callIsVideo = currentCallRef.current.metadata?.isVideoCall !== false;
       setIsCameraOn(callIsVideo);
       setIsMicOn(true);
 
-      // Get local media stream based on call type
+      // Get local media stream based on call type with highest quality
       const stream = await navigator.mediaDevices.getUserMedia({
         video: callIsVideo ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { min: 640, ideal: 1920, max: 1920 },
+          height: { min: 480, ideal: 1080, max: 1080 },
           facingMode: facingMode,
-          frameRate: { ideal: 30 }
+          frameRate: { min: 24, ideal: 60, max: 60 }
         } : false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 2
         },
       });
       setLocalStream(stream);
@@ -150,6 +195,10 @@ export const usePeerConnection = (currentUserId: string) => {
   };
 
   const declineCall = () => {
+    // Stop incoming ringtone
+    incomingRingtone.current?.pause();
+    if (incomingRingtone.current) incomingRingtone.current.currentTime = 0;
+
     currentCallRef.current?.close();
     currentCallRef.current = null;
     setIncomingCall(null);
@@ -174,13 +223,13 @@ export const usePeerConnection = (currentUserId: string) => {
       // Stop current video track
       localStream.getVideoTracks().forEach(track => track.stop());
 
-      // Get new stream with switched camera
+      // Get new stream with switched camera at highest quality
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { min: 640, ideal: 1920, max: 1920 },
+          height: { min: 480, ideal: 1080, max: 1080 },
           facingMode: newFacingMode,
-          frameRate: { ideal: 30 }
+          frameRate: { min: 24, ideal: 60, max: 60 }
         },
         audio: false
       });
@@ -216,6 +265,12 @@ export const usePeerConnection = (currentUserId: string) => {
   };
 
   const endCall = () => {
+    // Stop all ringtones
+    incomingRingtone.current?.pause();
+    outgoingRingtone.current?.pause();
+    if (incomingRingtone.current) incomingRingtone.current.currentTime = 0;
+    if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
+
     // Stop all tracks
     localStream?.getTracks().forEach((track) => track.stop());
     remoteStream?.getTracks().forEach((track) => track.stop());

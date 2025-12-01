@@ -66,7 +66,7 @@ const VideoCallScreen = ({
             autoPlay
             playsInline
             muted={isLocalExpanded}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover ${isLocalExpanded ? 'scale-x-[-1]' : ''}`}
           />
           
           {/* Floating Small Video */}
@@ -90,7 +90,7 @@ const VideoCallScreen = ({
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover scale-x-[-1]"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">

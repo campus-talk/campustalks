@@ -8,42 +8,43 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Modern Instagram-inspired palette with gradients */
-    --background: 0 0% 96%;
-    --foreground: 222 47% 11%;
+    /* Modern vibrant Instagram-inspired palette */
+    --background: 0 0% 98%;
+    --foreground: 240 10% 10%;
 
-    /* Premium gradient colors */
-    --gradient-start: 247 67% 71%; /* #667eea */
-    --gradient-end: 277 53% 53%; /* #764ba2 */
+    /* Vibrant gradient colors - Instagram-style */
+    --gradient-start: 330 100% 60%; /* Magenta-Pink */
+    --gradient-mid: 45 100% 55%; /* Orange */
+    --gradient-end: 290 80% 50%; /* Purple */
     
-    /* Primary gradient - Deep Purple/Blue */
-    --primary: 247 67% 71%;
+    /* Primary - Vibrant Purple */
+    --primary: 280 80% 55%;
     --primary-foreground: 0 0% 100%;
     
-    /* Secondary - Light variant */
-    --secondary: 247 35% 92%;
-    --secondary-foreground: 247 67% 20%;
+    /* Secondary - Soft Pink */
+    --secondary: 320 60% 92%;
+    --secondary-foreground: 280 80% 25%;
 
-    /* Accent - Vibrant purple */
-    --accent: 277 53% 53%;
+    /* Accent - Electric Blue */
+    --accent: 210 100% 55%;
     --accent-foreground: 0 0% 100%;
 
     /* Muted backgrounds */
-    --muted: 220 13% 95%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 240 10% 96%;
+    --muted-foreground: 240 5% 50%;
 
     /* Card styling with glass effect */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 240 10% 10%;
 
     /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 240 10% 10%;
 
     /* Borders and inputs */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 247 67% 71%;
+    --border: 240 10% 88%;
+    --input: 240 10% 88%;
+    --ring: 280 80% 55%;
 
     /* Success - For read receipts */
     --success: 158 64% 52%;
@@ -105,30 +106,36 @@ All colors MUST be HSL.
 /* Custom gradient utilities */
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 100%);
+    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-mid)) 50%, hsl(var(--gradient-end)) 100%);
   }
   
   .gradient-primary-hover {
-    background: linear-gradient(135deg, hsl(var(--gradient-start) / 0.9) 0%, hsl(var(--gradient-end) / 0.9) 100%);
+    background: linear-gradient(135deg, hsl(var(--gradient-start) / 0.9) 0%, hsl(var(--gradient-mid) / 0.9) 50%, hsl(var(--gradient-end) / 0.9) 100%);
   }
 
   .glass-effect {
-    background: hsl(var(--card) / 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: hsl(var(--card) / 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(var(--border) / 0.3);
   }
 
   .chat-bubble-sent {
-    background: linear-gradient(135deg, hsl(247 67% 60%) 0%, hsl(277 53% 58%) 100%);
+    background: linear-gradient(135deg, hsl(280 80% 55%) 0%, hsl(250 70% 60%) 100%);
+    box-shadow: 0 2px 8px hsl(280 80% 55% / 0.3);
   }
 
   .chat-bubble-received {
-    background: hsl(var(--card) / 0.95);
-    backdrop-filter: blur(8px);
+    background: hsl(var(--card));
+    box-shadow: 0 2px 8px hsl(240 10% 10% / 0.08);
   }
 
   .geometric-pattern {
-    background-image: radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.05) 1px, transparent 0);
-    background-size: 40px 40px;
+    background-color: hsl(var(--background));
+    background-image: 
+      radial-gradient(circle at 20% 30%, hsl(var(--gradient-start) / 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, hsl(var(--gradient-end) / 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.04) 1px, transparent 0);
+    background-size: 100% 100%, 100% 100%, 40px 40px;
   }
 }

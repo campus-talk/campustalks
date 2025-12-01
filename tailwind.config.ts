@@ -51,6 +51,7 @@ export default {
           DEFAULT: "hsl(var(--success))",
         },
         "gradient-start": "hsl(var(--gradient-start))",
+        "gradient-mid": "hsl(var(--gradient-mid))",
         "gradient-end": "hsl(var(--gradient-end))",
       },
       borderRadius: {

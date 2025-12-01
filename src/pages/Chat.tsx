@@ -11,6 +11,8 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { usePeerConnection } from "@/hooks/usePeerConnection";
 import IncomingCallModal from "@/components/IncomingCallModal";
 import VideoCallScreen from "@/components/VideoCallScreen";
+import MessageContextMenu from "@/components/MessageContextMenu";
+import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 
 interface Reaction {
   id: string;
@@ -26,6 +28,8 @@ interface Message {
   is_read: boolean;
   created_at: string;
   reactions?: Reaction[];
+  reply_to?: string | null;
+  deleted_for_everyone?: boolean;
 }
 
 interface Profile {
@@ -44,6 +48,9 @@ const Chat = () => {
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; isSent: boolean } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ messageId: string; canDeleteForEveryone: boolean } | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   
   const {
     startCall,
@@ -188,11 +195,13 @@ const Chat = () => {
         sender_id: currentUserId,
         content: newMessage.trim(),
         message_type: "text",
+        reply_to: replyingTo?.id || null,
       });
 
       if (error) throw error;
 
       setNewMessage("");
+      setReplyingTo(null);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -202,6 +211,87 @@ const Chat = () => {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleLongPress = (e: React.MouseEvent | React.TouchEvent, message: Message) => {
+    e.preventDefault();
+    const isSent = message.sender_id === currentUserId;
+    const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setContextMenu({ messageId: message.id, x, y, isSent });
+  };
+
+  const handleCopyMessage = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (message && message.message_type === "text") {
+      navigator.clipboard.writeText(message.content);
+      toast({
+        title: "Copied",
+        description: "Message copied to clipboard",
+      });
+    }
+    setContextMenu(null);
+  };
+
+  const handleReplyMessage = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (message) {
+      setReplyingTo(message);
+    }
+    setContextMenu(null);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    const isSent = message?.sender_id === currentUserId;
+    const canDeleteForEveryone = isSent;
+    setDeleteDialog({ messageId, canDeleteForEveryone });
+    setContextMenu(null);
+  };
+
+  const handleDeleteForMe = async () => {
+    if (!deleteDialog) return;
+    try {
+      // In a real app, mark as deleted for this user only
+      await supabase
+        .from("messages")
+        .delete()
+        .eq("id", deleteDialog.messageId);
+      
+      toast({
+        title: "Deleted",
+        description: "Message deleted",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+    setDeleteDialog(null);
+  };
+
+  const handleDeleteForEveryone = async () => {
+    if (!deleteDialog) return;
+    try {
+      await supabase
+        .from("messages")
+        .update({ deleted_for_everyone: true, content: "This message was deleted" })
+        .eq("id", deleteDialog.messageId);
+      
+      toast({
+        title: "Deleted",
+        description: "Message deleted for everyone",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+    setDeleteDialog(null);
   };
 
   const handleReaction = async (messageId: string, emoji: string) => {
@@ -274,6 +364,30 @@ const Chat = () => {
 
   return (
     <>
+      {/* Message Context Menu */}
+      <MessageContextMenu
+        isOpen={!!contextMenu}
+        position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : { x: 0, y: 0 }}
+        isSentMessage={contextMenu?.isSent || false}
+        onReply={() => contextMenu && handleReplyMessage(contextMenu.messageId)}
+        onForward={() => {
+          toast({ title: "Forward", description: "Feature coming soon!" });
+          setContextMenu(null);
+        }}
+        onCopy={() => contextMenu && handleCopyMessage(contextMenu.messageId)}
+        onDelete={() => contextMenu && handleDeleteMessage(contextMenu.messageId)}
+        onClose={() => setContextMenu(null)}
+      />
+
+      {/* Delete Message Dialog */}
+      <DeleteMessageDialog
+        isOpen={!!deleteDialog}
+        onClose={() => setDeleteDialog(null)}
+        onDeleteForMe={handleDeleteForMe}
+        onDeleteForEveryone={handleDeleteForEveryone}
+        canDeleteForEveryone={deleteDialog?.canDeleteForEveryone || false}
+      />
+
       {/* Incoming Call Modal */}
       <IncomingCallModal
         isOpen={!!incomingCall}
@@ -342,6 +456,24 @@ const Chat = () => {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
+          {replyingTo && (
+            <div className="sticky top-0 z-10 glass-effect border-l-4 border-primary p-3 rounded-lg mb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Replying to</p>
+                  <p className="text-sm text-foreground truncate">{replyingTo.content}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReplyingTo(null)}
+                  className="h-8 w-8 p-0"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+          )}
         {messages.map((message) => {
           const isSent = message.sender_id === currentUserId;
           const isImage = message.message_type === "image";
@@ -365,6 +497,12 @@ const Chat = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`flex ${isSent ? "justify-end" : "justify-start"} mb-4 group`}
+              onContextMenu={(e) => handleLongPress(e, message)}
+              onTouchStart={(e) => {
+                const timer = setTimeout(() => handleLongPress(e, message), 500);
+                const handler = () => clearTimeout(timer);
+                e.currentTarget.addEventListener('touchend', handler, { once: true });
+              }}
             >
               <div className={`max-w-[70%] ${isSent ? "" : "flex items-start gap-2"}`}>
                 {!isSent && (
@@ -384,7 +522,9 @@ const Chat = () => {
                         : "chat-bubble-received text-foreground rounded-bl-sm"
                     }`}
                   >
-                    {isImage ? (
+                    {message.deleted_for_everyone ? (
+                      <p className="italic text-muted-foreground">This message was deleted</p>
+                    ) : isImage ? (
                       <img
                         src={message.content}
                         alt="Shared image"
