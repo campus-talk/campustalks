@@ -1,0 +1,1 @@
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
