@@ -4,10 +4,11 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Plus, Users as UsersIcon } from "lucide-react";
+import { Plus, Users as UsersIcon, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateGroupDialog from "@/components/CreateGroupDialog";
+import GroupSettings from "@/components/GroupSettings";
 
 interface Group {
   id: string;
@@ -25,6 +26,7 @@ const Groups = () => {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroups();
@@ -90,10 +92,34 @@ const Groups = () => {
     }
   };
 
-  const handleGroupClick = (groupId: string) => {
-    // Navigate to group conversation
-    navigate(`/chat/${groupId}`);
+  const handleGroupClick = async (groupId: string) => {
+    // Find the conversation for this group
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("group_id", groupId)
+      .eq("is_group", true)
+      .single();
+
+    if (conversation) {
+      navigate(`/chat/${conversation.id}`);
+    }
   };
+
+  const handleGroupSettings = (groupId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedGroupId(groupId);
+  };
+
+  if (selectedGroupId) {
+    return (
+      <GroupSettings
+        groupId={selectedGroupId}
+        currentUserId={currentUserId}
+        onClose={() => setSelectedGroupId(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -180,6 +206,15 @@ const Groups = () => {
                       </span>
                     </div>
                   </div>
+
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => handleGroupSettings(group.id, e)}
+                    className="hover:bg-background/80"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </Button>
                 </div>
               </motion.div>
             ))}
