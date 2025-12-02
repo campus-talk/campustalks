@@ -48,7 +48,7 @@ const VideoCallScreen = ({
   }, [remoteStream, isVideoCall]);
 
   const handleSwapVideos = () => {
-    setIsLocalExpanded(!isLocalExpanded);
+    setIsLocalExpanded(prev => !prev);
   };
 
   return (
@@ -66,7 +66,7 @@ const VideoCallScreen = ({
             autoPlay
             playsInline
             muted={isLocalExpanded}
-            className={`w-full h-full object-cover ${isLocalExpanded ? 'scale-x-[-1]' : ''}`}
+            className="w-full h-full object-cover"
           />
           
           {/* Floating Small Video */}
@@ -90,7 +90,7 @@ const VideoCallScreen = ({
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover scale-x-[-1]"
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">
