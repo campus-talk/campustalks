@@ -14,6 +14,67 @@ export type Database = {
   }
   public: {
     Tables: {
+      call_logs: {
+        Row: {
+          call_status: string
+          call_type: string
+          caller_id: string
+          conversation_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          receiver_id: string | null
+          started_at: string | null
+        }
+        Insert: {
+          call_status: string
+          call_type: string
+          caller_id: string
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          receiver_id?: string | null
+          started_at?: string | null
+        }
+        Update: {
+          call_status?: string
+          call_type?: string
+          caller_id?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          receiver_id?: string | null
+          started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_caller_id_fkey"
+            columns: ["caller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -126,6 +187,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          settings: Json | null
         }
         Insert: {
           avatar_url?: string | null
@@ -134,6 +196,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          settings?: Json | null
         }
         Update: {
           avatar_url?: string | null
@@ -142,6 +205,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          settings?: Json | null
         }
         Relationships: [
           {
