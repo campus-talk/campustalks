@@ -7,7 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Camera, UserPlus, UserMinus, Shield, Settings, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Camera, UserPlus, UserMinus, Shield, Users, Search, ArrowLeft } from "lucide-react";
+
+const MAX_GROUP_MEMBERS = 30;
 
 interface GroupMember {
   id: string;
@@ -25,12 +29,23 @@ interface GroupSettingsProps {
   onClose: () => void;
 }
 
+interface Profile {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+}
+
 const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) => {
   const { toast } = useToast();
   const [group, setGroup] = useState<any>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState<Profile[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [addingMembers, setAddingMembers] = useState(false);
 
   useEffect(() => {
     fetchGroupDetails();
@@ -171,6 +186,21 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
 
       if (error) throw error;
 
+      // Also remove from conversation_participants
+      const { data: conversation } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("group_id", groupId)
+        .single();
+
+      if (conversation) {
+        await supabase
+          .from("conversation_participants")
+          .delete()
+          .eq("conversation_id", conversation.id)
+          .eq("user_id", userId);
+      }
+
       toast({
         title: "Success",
         description: "Member removed from group",
@@ -184,6 +214,111 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
       });
     }
   };
+
+  const fetchAllUsers = async () => {
+    const memberIds = members.map(m => m.user_id);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .not("id", "in", `(${memberIds.join(",")})`);
+
+    if (!error && data) {
+      setAllUsers(data);
+    }
+  };
+
+  const handleOpenAddMember = () => {
+    if (members.length >= MAX_GROUP_MEMBERS) {
+      toast({
+        variant: "destructive",
+        title: "Member limit reached",
+        description: `Groups can have maximum ${MAX_GROUP_MEMBERS} members`,
+      });
+      return;
+    }
+    fetchAllUsers();
+    setAddMemberOpen(true);
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    const newSelected = new Set(selectedUsers);
+    if (newSelected.has(userId)) {
+      newSelected.delete(userId);
+    } else {
+      // Check if adding more would exceed limit
+      if (members.length + newSelected.size + 1 > MAX_GROUP_MEMBERS) {
+        toast({
+          variant: "destructive",
+          title: "Member limit",
+          description: `Can only add ${MAX_GROUP_MEMBERS - members.length} more members`,
+        });
+        return;
+      }
+      newSelected.add(userId);
+    }
+    setSelectedUsers(newSelected);
+  };
+
+  const handleAddMembers = async () => {
+    if (selectedUsers.size === 0) return;
+
+    setAddingMembers(true);
+    try {
+      // Add to group_members
+      const newMembers = Array.from(selectedUsers).map(userId => ({
+        group_id: groupId,
+        user_id: userId,
+        role: "member",
+      }));
+
+      const { error: membersError } = await supabase
+        .from("group_members")
+        .insert(newMembers);
+
+      if (membersError) throw membersError;
+
+      // Add to conversation_participants
+      const { data: conversation } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("group_id", groupId)
+        .single();
+
+      if (conversation) {
+        const participants = Array.from(selectedUsers).map(userId => ({
+          conversation_id: conversation.id,
+          user_id: userId,
+        }));
+
+        await supabase
+          .from("conversation_participants")
+          .insert(participants);
+      }
+
+      toast({
+        title: "Success",
+        description: `Added ${selectedUsers.size} member(s) to the group`,
+      });
+
+      setAddMemberOpen(false);
+      setSelectedUsers(new Set());
+      setSearchQuery("");
+      fetchGroupDetails();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setAddingMembers(false);
+    }
+  };
+
+  const filteredUsers = allUsers.filter(
+    user =>
+      user.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const updateGroupSettings = async (setting: string, value: string) => {
     if (!isAdmin) {
@@ -341,10 +476,22 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
 
         {/* Members List */}
         <div className="glass-effect rounded-2xl p-6">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Members ({members.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Members ({members.length}/{MAX_GROUP_MEMBERS})
+            </h3>
+            {isAdmin && (
+              <Button
+                size="sm"
+                onClick={handleOpenAddMember}
+                className="gap-1"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add
+              </Button>
+            )}
+          </div>
           <div className="space-y-3">
             {members.map((member) => (
               <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-background/50 transition-colors">
@@ -366,7 +513,7 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
                       value={member.role}
                       onValueChange={(value) => updateMemberRole(member.id, value)}
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-28">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -388,6 +535,80 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
           </div>
         </div>
       </div>
+
+      {/* Add Member Dialog */}
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Add Members
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {selectedUsers.size > 0 && (
+            <p className="text-sm text-muted-foreground mb-2">
+              {selectedUsers.size} selected
+            </p>
+          )}
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-[200px]">
+            {filteredUsers.map((user) => (
+              <div
+                key={user.id}
+                className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors"
+                onClick={() => toggleUserSelection(user.id)}
+              >
+                <Checkbox
+                  checked={selectedUsers.has(user.id)}
+                  onCheckedChange={() => toggleUserSelection(user.id)}
+                />
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={user.avatar_url || ""} />
+                  <AvatarFallback>{user.full_name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <span className="font-medium">{user.full_name}</span>
+              </div>
+            ))}
+            {filteredUsers.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">
+                No users found
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddMemberOpen(false);
+                setSelectedUsers(new Set());
+                setSearchQuery("");
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddMembers}
+              disabled={selectedUsers.size === 0 || addingMembers}
+              className="flex-1"
+            >
+              {addingMembers ? "Adding..." : `Add (${selectedUsers.size})`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

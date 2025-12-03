@@ -6,9 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Camera, Save, LogOut } from "lucide-react";
+import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import BlockedUsersList from "@/components/BlockedUsersList";
+import BottomNav from "@/components/BottomNav";
 
 interface Profile {
   id: string;
@@ -30,6 +33,7 @@ const Settings = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [loading, setLoading] = useState(false);
+  const [blockedUsersOpen, setBlockedUsersOpen] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -135,7 +139,7 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen geometric-pattern">
+    <div className="min-h-screen geometric-pattern pb-24">
       <header className="gradient-primary text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <Button
@@ -246,6 +250,20 @@ const Settings = () => {
               {loading ? "Saving..." : "Save Changes"}
             </Button>
 
+            {/* Blocked Users Section */}
+            <button
+              onClick={() => setBlockedUsersOpen(true)}
+              className="w-full flex items-center justify-between p-4 rounded-xl bg-background/50 hover:bg-background/80 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-destructive/10">
+                  <UserX className="w-5 h-5 text-destructive" />
+                </div>
+                <span className="font-medium">Blocked Users</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
+
             <Button
               onClick={handleLogout}
               variant="outline"
@@ -258,6 +276,23 @@ const Settings = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Blocked Users Dialog */}
+      <Dialog open={blockedUsersOpen} onOpenChange={setBlockedUsersOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserX className="w-5 h-5" />
+              Blocked Users
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {profile && <BlockedUsersList currentUserId={profile.id} />}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <BottomNav />
     </div>
   );
 };

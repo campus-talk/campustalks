@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, MessageCircle, Video } from "lucide-react";
+import { ArrowLeft, MessageCircle, Video, Phone, UserX, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePeerConnection } from "@/hooks/usePeerConnection";
 import IncomingCallModal from "@/components/IncomingCallModal";
@@ -27,6 +27,8 @@ const Profile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
   
   const {
     startCall,
@@ -51,9 +53,72 @@ const Profile = () => {
     getCurrentUser();
   }, [userId]);
 
+  useEffect(() => {
+    if (currentUserId && userId) {
+      checkBlockStatus();
+    }
+  }, [currentUserId, userId]);
+
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) setCurrentUserId(user.id);
+  };
+
+  const checkBlockStatus = async () => {
+    const { data } = await supabase
+      .from("blocked_users")
+      .select("id")
+      .eq("blocker_id", currentUserId)
+      .eq("blocked_id", userId)
+      .single();
+    
+    setIsBlocked(!!data);
+  };
+
+  const handleToggleBlock = async () => {
+    if (!userId || !currentUserId) return;
+    
+    setBlockLoading(true);
+    try {
+      if (isBlocked) {
+        // Unblock
+        const { error } = await supabase
+          .from("blocked_users")
+          .delete()
+          .eq("blocker_id", currentUserId)
+          .eq("blocked_id", userId);
+
+        if (error) throw error;
+        setIsBlocked(false);
+        toast({
+          title: "Unblocked",
+          description: `${profile?.full_name} has been unblocked`,
+        });
+      } else {
+        // Block
+        const { error } = await supabase
+          .from("blocked_users")
+          .insert({
+            blocker_id: currentUserId,
+            blocked_id: userId,
+          });
+
+        if (error) throw error;
+        setIsBlocked(true);
+        toast({
+          title: "Blocked",
+          description: `${profile?.full_name} has been blocked`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setBlockLoading(false);
+    }
   };
 
   const fetchProfile = async () => {
@@ -238,11 +303,12 @@ const Profile = () => {
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center">
             <Button
               onClick={handleStartChat}
-              className="gradient-primary hover:gradient-primary-hover text-white font-semibold flex-1 max-w-xs"
+              className="gradient-primary hover:gradient-primary-hover text-white font-semibold"
               size="lg"
+              disabled={isBlocked}
             >
               <MessageCircle className="w-5 h-5 mr-2" />
               Message
@@ -252,11 +318,45 @@ const Profile = () => {
               variant="outline"
               size="lg"
               className="border-primary text-primary hover:bg-primary/10"
+              disabled={isBlocked}
             >
               <Video className="w-5 h-5 mr-2" />
-              Call
+              Video
+            </Button>
+            <Button
+              onClick={() => userId && startAudioCall(userId)}
+              variant="outline"
+              size="lg"
+              className="border-primary text-primary hover:bg-primary/10"
+              disabled={isBlocked}
+            >
+              <Phone className="w-5 h-5 mr-2" />
+              Audio
             </Button>
           </div>
+
+          {/* Block Button */}
+          {currentUserId !== userId && (
+            <Button
+              onClick={handleToggleBlock}
+              variant="ghost"
+              size="sm"
+              disabled={blockLoading}
+              className={`mt-6 ${isBlocked ? "text-green-600 hover:text-green-700" : "text-destructive hover:text-destructive"}`}
+            >
+              {isBlocked ? (
+                <>
+                  <UserCheck className="w-4 h-4 mr-2" />
+                  Unblock User
+                </>
+              ) : (
+                <>
+                  <UserX className="w-4 h-4 mr-2" />
+                  Block User
+                </>
+              )}
+            </Button>
+          )}
         </motion.div>
       </div>
     </div>
