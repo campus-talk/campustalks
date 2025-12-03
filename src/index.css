@@ -138,4 +138,13 @@ All colors MUST be HSL.
       radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.04) 1px, transparent 0);
     background-size: 100% 100%, 100% 100%, 40px 40px;
   }
+
+  /* Safe area padding for notched devices */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pb-safe-nav {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
 }

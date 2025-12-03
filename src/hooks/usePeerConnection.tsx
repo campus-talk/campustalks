@@ -20,6 +20,8 @@ export const usePeerConnection = (currentUserId: string) => {
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const incomingRingtone = useRef<HTMLAudioElement | null>(null);
   const outgoingRingtone = useRef<HTMLAudioElement | null>(null);
+  const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const CALL_TIMEOUT_MS = 35000; // 35 seconds timeout
 
   // Initialize ringtones
   useEffect(() => {
@@ -91,6 +93,13 @@ export const usePeerConnection = (currentUserId: string) => {
     };
   }, [currentUserId]);
 
+  const clearCallTimeout = () => {
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+  };
+
   const startCall = async (remoteUserId: string, videoEnabled = true) => {
     try {
       // Play outgoing ringtone
@@ -99,6 +108,15 @@ export const usePeerConnection = (currentUserId: string) => {
       setIsVideoCall(videoEnabled);
       setIsCameraOn(videoEnabled);
       setIsMicOn(true);
+
+      // Set call timeout - auto end if not answered within 35 seconds
+      clearCallTimeout();
+      callTimeoutRef.current = setTimeout(() => {
+        console.log("Call timeout - no answer");
+        outgoingRingtone.current?.pause();
+        if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
+        endCall();
+      }, CALL_TIMEOUT_MS);
 
       // Get local media stream with highest quality
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -128,17 +146,20 @@ export const usePeerConnection = (currentUserId: string) => {
 
       call.on("stream", (remoteStream) => {
         console.log("Received remote stream");
-        // Stop outgoing ringtone when call connects
+        // Clear timeout and stop outgoing ringtone when call connects
+        clearCallTimeout();
         outgoingRingtone.current?.pause();
         if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
         setRemoteStream(remoteStream);
       });
 
       call.on("close", () => {
+        clearCallTimeout();
         endCall();
       });
     } catch (error) {
       console.error("Error starting call:", error);
+      clearCallTimeout();
     }
   };
 
@@ -265,6 +286,9 @@ export const usePeerConnection = (currentUserId: string) => {
   };
 
   const endCall = () => {
+    // Clear call timeout
+    clearCallTimeout();
+
     // Stop all ringtones
     incomingRingtone.current?.pause();
     outgoingRingtone.current?.pause();
