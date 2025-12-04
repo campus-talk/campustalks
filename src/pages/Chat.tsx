@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { usePeerConnection } from "@/hooks/usePeerConnection";
@@ -33,6 +33,15 @@ interface Message {
   deleted_for_everyone?: boolean;
 }
 
+interface CallLog {
+  id: string;
+  call_type: string;
+  call_status: string;
+  duration_seconds: number | null;
+  created_at: string;
+  caller_id: string;
+}
+
 interface Profile {
   id: string;
   full_name: string;
@@ -44,6 +53,7 @@ const Chat = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
@@ -141,8 +151,21 @@ const Chat = () => {
       }
     }
 
-    // Load messages
+    // Load messages and call logs
     loadMessages();
+    loadCallLogs();
+  };
+
+  const loadCallLogs = async () => {
+    const { data } = await supabase
+      .from("call_logs")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      setCallLogs(data);
+    }
   };
 
   const loadMessages = async () => {
@@ -538,7 +561,83 @@ const Chat = () => {
               </div>
             </div>
           )}
-        {messages.map((message) => {
+
+          {/* Merge messages and call logs by timestamp */}
+          {(() => {
+            // Combine messages and call logs into a single sorted array
+            const allItems = [
+              ...messages.map(m => ({ type: 'message' as const, data: m, timestamp: m.created_at })),
+              ...callLogs.map(c => ({ type: 'call' as const, data: c, timestamp: c.created_at }))
+            ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+            return allItems.map((item) => {
+              // Render Call Log
+              if (item.type === 'call') {
+                const call = item.data as CallLog;
+                const isCaller = call.caller_id === currentUserId;
+                const isMissed = call.call_status === 'missed';
+                const isVideo = call.call_type === 'video';
+                
+                const formatDuration = (seconds: number | null) => {
+                  if (!seconds) return '';
+                  const mins = Math.floor(seconds / 60);
+                  const secs = seconds % 60;
+                  return mins > 0 ? `${mins} min ${secs} sec` : `${secs} secs`;
+                };
+
+                return (
+                  <motion.div
+                    key={`call-${call.id}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isCaller ? "justify-end" : "justify-start"} mb-4`}
+                  >
+                    <div
+                      onClick={() => {
+                        if (otherUser) {
+                          isVideo ? startCall(otherUser.id) : startAudioCall(otherUser.id);
+                        }
+                      }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] ${
+                        isCaller
+                          ? "bg-primary/10 rounded-br-sm"
+                          : "bg-muted rounded-bl-sm"
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        isMissed ? 'bg-destructive/20' : 'bg-green-500/20'
+                      }`}>
+                        {isMissed ? (
+                          <PhoneMissed className={`w-5 h-5 ${isMissed ? 'text-destructive' : 'text-green-500'}`} />
+                        ) : isCaller ? (
+                          <PhoneOutgoing className="w-5 h-5 text-green-500" />
+                        ) : (
+                          <PhoneIncoming className="w-5 h-5 text-green-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">
+                          {isMissed 
+                            ? `Missed ${isVideo ? 'video' : 'voice'} call` 
+                            : `${isVideo ? 'Video' : 'Voice'} call`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isMissed ? 'Tap to call back' : formatDuration(call.duration_seconds) || 'Tap to call back'}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {new Date(call.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              }
+
+              // Render Message
+              const message = item.data as Message;
           const isSent = message.sender_id === currentUserId;
           const isImage = message.message_type === "image";
 
@@ -644,8 +743,9 @@ const Chat = () => {
                 </div>
               </div>
             </motion.div>
-          );
-        })}
+              );
+            });
+          })()}
           <div ref={messagesEndRef} />
         </div>
 
