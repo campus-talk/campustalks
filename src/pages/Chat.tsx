@@ -13,6 +13,7 @@ import IncomingCallModal from "@/components/IncomingCallModal";
 import VideoCallScreen from "@/components/VideoCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
+import MentionPicker from "@/components/MentionPicker";
 
 interface Reaction {
   id: string;
@@ -51,6 +52,10 @@ const Chat = () => {
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; isSent: boolean } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ messageId: string; canDeleteForEveryone: boolean } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [isGroupChat, setIsGroupChat] = useState(false);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionSearchQuery, setMentionSearchQuery] = useState("");
   
   const {
     startCall,
@@ -91,22 +96,49 @@ const Chat = () => {
     }
     setCurrentUserId(user.id);
 
-    // Get conversation participants
-    const { data: participants } = await supabase
-      .from("conversation_participants")
-      .select("user_id")
-      .eq("conversation_id", conversationId);
+    // Check if this is a group conversation
+    const { data: conversationData } = await supabase
+      .from("conversations")
+      .select("is_group, group_id")
+      .eq("id", conversationId)
+      .single();
 
-    const otherUserId = participants?.find(p => p.user_id !== user.id)?.user_id;
-
-    if (otherUserId) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url")
-        .eq("id", otherUserId)
+    if (conversationData?.is_group && conversationData.group_id) {
+      setIsGroupChat(true);
+      setGroupId(conversationData.group_id);
+      
+      // Get group info
+      const { data: groupData } = await supabase
+        .from("groups")
+        .select("name, avatar_url")
+        .eq("id", conversationData.group_id)
         .single();
 
-      setOtherUser(profile);
+      if (groupData) {
+        setOtherUser({
+          id: conversationData.group_id,
+          full_name: groupData.name,
+          avatar_url: groupData.avatar_url,
+        });
+      }
+    } else {
+      // Get conversation participants for 1-on-1 chat
+      const { data: participants } = await supabase
+        .from("conversation_participants")
+        .select("user_id")
+        .eq("conversation_id", conversationId);
+
+      const otherUserId = participants?.find(p => p.user_id !== user.id)?.user_id;
+
+      if (otherUserId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url")
+          .eq("id", otherUserId)
+          .single();
+
+        setOtherUser(profile);
+      }
     }
 
     // Load messages
@@ -211,6 +243,38 @@ const Chat = () => {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+
+    // Check for @ mention trigger in group chats
+    if (isGroupChat && groupId) {
+      const lastAtIndex = value.lastIndexOf("@");
+      if (lastAtIndex !== -1) {
+        const textAfterAt = value.substring(lastAtIndex + 1);
+        // Check if we're still typing a mention (no space after @)
+        if (!textAfterAt.includes(" ")) {
+          setShowMentionPicker(true);
+          setMentionSearchQuery(textAfterAt);
+        } else {
+          setShowMentionPicker(false);
+        }
+      } else {
+        setShowMentionPicker(false);
+      }
+    }
+  };
+
+  const handleMentionSelect = (userId: string, fullName: string) => {
+    // Find the last @ and replace everything after it with the selected user's name
+    const lastAtIndex = newMessage.lastIndexOf("@");
+    if (lastAtIndex !== -1) {
+      const beforeAt = newMessage.substring(0, lastAtIndex);
+      setNewMessage(`${beforeAt}@${fullName} `);
+    }
+    setShowMentionPicker(false);
   };
 
   const handleLongPress = (e: React.MouseEvent | React.TouchEvent, message: Message) => {
@@ -586,30 +650,41 @@ const Chat = () => {
         </div>
 
         {/* Input */}
-        <div className="glass-effect border-t border-border p-3 flex-shrink-0">
-        <form onSubmit={handleSendMessage} className="flex gap-3">
-          <input
-            type="file"
-            id="image-upload"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => document.getElementById("image-upload")?.click()}
-            className="flex-shrink-0"
-          >
-            <Paperclip className="w-5 h-5" />
-          </Button>
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-background/50"
-          />
+        <div className="glass-effect border-t border-border p-3 flex-shrink-0 relative">
+          {/* Mention Picker */}
+          {isGroupChat && groupId && (
+            <MentionPicker
+              isOpen={showMentionPicker}
+              groupId={groupId}
+              searchQuery={mentionSearchQuery}
+              onSelect={handleMentionSelect}
+              onClose={() => setShowMentionPicker(false)}
+            />
+          )}
+          
+          <form onSubmit={handleSendMessage} className="flex gap-3">
+            <input
+              type="file"
+              id="image-upload"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => document.getElementById("image-upload")?.click()}
+              className="flex-shrink-0"
+            >
+              <Paperclip className="w-5 h-5" />
+            </Button>
+            <Input
+              value={newMessage}
+              onChange={handleMessageChange}
+              placeholder={isGroupChat ? "Type @ to mention..." : "Type a message..."}
+              className="flex-1 bg-background/50"
+            />
             <Button
               type="submit"
               disabled={sending || !newMessage.trim()}

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox";
 import { Camera, UserPlus, UserMinus, Shield, Users, Search, ArrowLeft } from "lucide-react";
 
-const MAX_GROUP_MEMBERS = 30;
+// Group members are unlimited, only call participants are limited to 30
 
 interface GroupMember {
   id: string;
@@ -228,14 +228,6 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
   };
 
   const handleOpenAddMember = () => {
-    if (members.length >= MAX_GROUP_MEMBERS) {
-      toast({
-        variant: "destructive",
-        title: "Member limit reached",
-        description: `Groups can have maximum ${MAX_GROUP_MEMBERS} members`,
-      });
-      return;
-    }
     fetchAllUsers();
     setAddMemberOpen(true);
   };
@@ -245,15 +237,6 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
     if (newSelected.has(userId)) {
       newSelected.delete(userId);
     } else {
-      // Check if adding more would exceed limit
-      if (members.length + newSelected.size + 1 > MAX_GROUP_MEMBERS) {
-        toast({
-          variant: "destructive",
-          title: "Member limit",
-          description: `Can only add ${MAX_GROUP_MEMBERS - members.length} more members`,
-        });
-        return;
-      }
       newSelected.add(userId);
     }
     setSelectedUsers(newSelected);
@@ -479,7 +462,7 @@ const GroupSettings = ({ groupId, currentUserId, onClose }: GroupSettingsProps) 
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Members ({members.length}/{MAX_GROUP_MEMBERS})
+              Members ({members.length})
             </h3>
             {isAdmin && (
               <Button
