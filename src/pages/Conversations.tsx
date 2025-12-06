@@ -222,16 +222,16 @@ const Conversations = () => {
   }
 
   return (
-    <div className="min-h-screen geometric-pattern pb-20">
+    <div className="min-h-screen geometric-pattern pb-safe-nav">
       {/* Header */}
-      <header className="gradient-primary text-white p-6 shadow-lg">
+      <header className="gradient-soft text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">Chats</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-white/20"
+              className="text-white hover:bg-white/20 rounded-full"
               onClick={() => setCreateGroupOpen(true)}
             >
               <Users className="w-5 h-5" />
@@ -239,7 +239,7 @@ const Conversations = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-white/20"
+              className="text-white hover:bg-white/20 rounded-full"
               onClick={() => navigate("/search")}
             >
               <Search className="w-5 h-5" />
@@ -258,38 +258,41 @@ const Conversations = () => {
       <div className="max-w-7xl mx-auto">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6">
+            <div className="w-16 h-16 gradient-soft rounded-full flex items-center justify-center mb-4 shadow-lg">
+              <Search className="w-8 h-8 text-white" />
+            </div>
             <p className="text-muted-foreground text-center mb-4">
               No conversations yet. Start by searching for people!
             </p>
             <Button
               onClick={() => navigate("/search")}
-              className="gradient-primary hover:gradient-primary-hover"
+              className="gradient-soft hover:opacity-90 shadow-lg shadow-primary/20"
             >
               <Search className="w-5 h-5 mr-2" />
               Search People
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border/50">
             {conversations.map((conv, index) => (
               <motion.div
                 key={conv.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: index * 0.03 }}
                 onClick={() => navigate(`/chat/${conv.id}`)}
-                className="flex items-center gap-4 p-4 hover:bg-accent/50 cursor-pointer transition-colors"
+                className="flex items-center gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-all active:scale-[0.99]"
               >
-                <Avatar className="w-14 h-14 border-2 border-primary/20">
+                <Avatar className="w-14 h-14 border-2 border-primary/20 shadow-sm">
                   <AvatarImage src={conv.is_group ? conv.group?.avatar_url || "" : conv.otherUser?.avatar_url || ""} />
-                  <AvatarFallback className="bg-gradient-primary text-white text-xl">
+                  <AvatarFallback className="gradient-soft text-white text-xl font-medium">
                     {conv.is_group ? conv.group?.name.charAt(0) : conv.otherUser?.full_name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold truncate">
+                    <h3 className="font-semibold truncate text-foreground">
                       {conv.is_group ? conv.group?.name : conv.otherUser?.full_name}
                     </h3>
                     {conv.lastMessage && (
@@ -307,7 +310,7 @@ const Conversations = () => {
                         : "No messages yet"}
                     </p>
                     {conv.unreadCount > 0 && (
-                      <span className="bg-primary text-primary-foreground text-xs rounded-full px-2 py-1 ml-2">
+                      <span className="gradient-soft text-white text-xs rounded-full px-2.5 py-1 ml-2 font-medium shadow-sm">
                         {conv.unreadCount}
                       </span>
                     )}

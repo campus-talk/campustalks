@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Search, Settings, LogOut, MessageCircle } from "lucide-react";
+import { Search, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import BottomNav from "@/components/BottomNav";
 
 interface Profile {
   id: string;
@@ -59,11 +60,6 @@ const Home = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center geometric-pattern">
@@ -73,64 +69,52 @@ const Home = () => {
   }
 
   return (
-    <div className="min-h-screen geometric-pattern">
+    <div className="min-h-screen geometric-pattern pb-safe-nav">
       {/* Header */}
       <motion.header
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        className="gradient-primary text-white p-6 shadow-lg"
+        className="gradient-soft text-white p-6 shadow-lg"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Avatar className="w-12 h-12 border-2 border-white/30">
+            <Avatar className="w-12 h-12 border-2 border-white/30 shadow-lg">
               <AvatarImage src={profile?.avatar_url || ""} />
-              <AvatarFallback className="bg-white/20 text-white">
+              <AvatarFallback className="bg-white/20 text-white font-medium">
                 {profile?.full_name.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="font-semibold">{profile?.full_name}</h2>
-              <p className="text-xs text-white/80">@{profile?.username}</p>
+              <h2 className="font-semibold text-lg">{profile?.full_name}</h2>
+              <p className="text-sm text-white/80">@{profile?.username}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20"
-              onClick={() => navigate("/settings")}
-            >
-              <Settings className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-5 h-5" />
-            </Button>
+          <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full">
+            <Sparkles className="w-4 h-4" />
+            <span className="text-sm font-medium">{profile?.unique_key}</span>
           </div>
         </div>
       </motion.header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="glass-effect rounded-3xl p-8 mb-6"
+          className="glass-effect rounded-2xl p-6 sm:p-8 mb-6"
         >
           <div className="text-center">
-            <MessageCircle className="w-16 h-16 mx-auto mb-4 text-primary" />
-            <h1 className="text-2xl font-bold mb-2">Welcome to FamilyConnect</h1>
+            <div className="w-16 h-16 gradient-soft rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <MessageCircle className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2 text-foreground">Welcome to FamilyConnect</h1>
             <p className="text-muted-foreground mb-6">
-              Your unique code: <span className="font-mono font-semibold text-primary">{profile?.unique_key}</span>
+              Connect with your family and friends instantly
             </p>
             <Button
               onClick={() => navigate("/search")}
-              className="gradient-primary hover:gradient-primary-hover text-white font-semibold"
+              className="gradient-soft hover:opacity-90 text-white font-semibold shadow-lg shadow-primary/20"
               size="lg"
             >
               <Search className="w-5 h-5 mr-2" />
@@ -143,16 +127,18 @@ const Home = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="glass-effect rounded-3xl p-8"
+          className="glass-effect rounded-2xl p-6 sm:p-8"
         >
-          <h2 className="text-xl font-semibold mb-4">Recent Conversations</h2>
+          <h2 className="text-xl font-semibold mb-4 text-foreground">Recent Activity</h2>
           <div className="text-center py-12 text-muted-foreground">
             <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>No conversations yet</p>
-            <p className="text-sm">Start by searching for people to connect with</p>
+            <p className="font-medium">No conversations yet</p>
+            <p className="text-sm mt-1">Start by searching for people to connect with</p>
           </div>
         </motion.div>
       </div>
+
+      <BottomNav />
     </div>
   );
 };
