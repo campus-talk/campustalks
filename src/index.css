@@ -8,46 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Modern vibrant Instagram-inspired palette */
-    --background: 0 0% 98%;
-    --foreground: 240 10% 10%;
+    /* Soft, friendly color palette - Modern and attractive */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
 
-    /* Vibrant gradient colors - Instagram-style */
-    --gradient-start: 330 100% 60%; /* Magenta-Pink */
-    --gradient-mid: 45 100% 55%; /* Orange */
-    --gradient-end: 290 80% 50%; /* Purple */
+    /* Beautiful gradient colors - Soft teal to coral */
+    --gradient-start: 172 66% 50%; /* Teal */
+    --gradient-mid: 340 82% 65%; /* Coral Pink */
+    --gradient-end: 262 83% 65%; /* Soft Purple */
     
-    /* Primary - Vibrant Purple */
-    --primary: 280 80% 55%;
+    /* Primary - Soft Teal */
+    --primary: 172 66% 50%;
     --primary-foreground: 0 0% 100%;
     
-    /* Secondary - Soft Pink */
-    --secondary: 320 60% 92%;
-    --secondary-foreground: 280 80% 25%;
+    /* Secondary - Soft Lavender */
+    --secondary: 262 40% 94%;
+    --secondary-foreground: 262 60% 35%;
 
-    /* Accent - Electric Blue */
-    --accent: 210 100% 55%;
+    /* Accent - Warm Coral */
+    --accent: 340 82% 65%;
     --accent-foreground: 0 0% 100%;
 
     /* Muted backgrounds */
-    --muted: 240 10% 96%;
-    --muted-foreground: 240 5% 50%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    /* Card styling with glass effect */
+    /* Card styling with soft effect */
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 10%;
+    --card-foreground: 222 47% 11%;
 
     /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
+    --popover-foreground: 222 47% 11%;
 
     /* Borders and inputs */
-    --border: 240 10% 88%;
-    --input: 240 10% 88%;
-    --ring: 280 80% 55%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 172 66% 50%;
 
     /* Success - For read receipts */
-    --success: 158 64% 52%;
+    --success: 172 66% 50%;
     
     /* Destructive */
     --destructive: 0 84% 60%;
@@ -60,16 +60,17 @@ All colors MUST be HSL.
     --background: 222 47% 7%;
     --foreground: 0 0% 98%;
 
-    --gradient-start: 247 67% 71%;
-    --gradient-end: 277 53% 53%;
+    --gradient-start: 172 66% 55%;
+    --gradient-mid: 340 75% 60%;
+    --gradient-end: 262 70% 60%;
     
-    --primary: 247 67% 71%;
+    --primary: 172 66% 55%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 247 25% 15%;
-    --secondary-foreground: 247 67% 80%;
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 172 50% 80%;
 
-    --accent: 277 53% 53%;
+    --accent: 340 75% 60%;
     --accent-foreground: 0 0% 100%;
 
     --muted: 220 13% 15%;
@@ -83,9 +84,9 @@ All colors MUST be HSL.
 
     --border: 220 13% 20%;
     --input: 220 13% 20%;
-    --ring: 247 67% 71%;
+    --ring: 172 66% 55%;
 
-    --success: 158 64% 52%;
+    --success: 172 66% 50%;
     
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -113,6 +114,10 @@ All colors MUST be HSL.
     background: linear-gradient(135deg, hsl(var(--gradient-start) / 0.9) 0%, hsl(var(--gradient-mid) / 0.9) 50%, hsl(var(--gradient-end) / 0.9) 100%);
   }
 
+  .gradient-soft {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+  }
+
   .glass-effect {
     background: hsl(var(--card) / 0.85);
     backdrop-filter: blur(16px);
@@ -121,21 +126,21 @@ All colors MUST be HSL.
   }
 
   .chat-bubble-sent {
-    background: linear-gradient(135deg, hsl(280 80% 55%) 0%, hsl(250 70% 60%) 100%);
-    box-shadow: 0 2px 8px hsl(280 80% 55% / 0.3);
+    background: linear-gradient(135deg, hsl(172 66% 50%) 0%, hsl(172 66% 45%) 100%);
+    box-shadow: 0 2px 8px hsl(172 66% 50% / 0.25);
   }
 
   .chat-bubble-received {
     background: hsl(var(--card));
-    box-shadow: 0 2px 8px hsl(240 10% 10% / 0.08);
+    box-shadow: 0 2px 8px hsl(222 47% 11% / 0.06);
   }
 
   .geometric-pattern {
     background-color: hsl(var(--background));
     background-image: 
-      radial-gradient(circle at 20% 30%, hsl(var(--gradient-start) / 0.03) 0%, transparent 50%),
-      radial-gradient(circle at 80% 70%, hsl(var(--gradient-end) / 0.03) 0%, transparent 50%),
-      radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.04) 1px, transparent 0);
+      radial-gradient(circle at 20% 30%, hsl(var(--gradient-start) / 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, hsl(var(--gradient-end) / 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.03) 1px, transparent 0);
     background-size: 100% 100%, 100% 100%, 40px 40px;
   }
 
@@ -146,5 +151,36 @@ All colors MUST be HSL.
 
   .pb-safe-nav {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Smooth animations */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }

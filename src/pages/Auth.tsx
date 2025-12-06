@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Mail, Lock, User } from "lucide-react";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -67,90 +67,124 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center geometric-pattern px-4">
+    <div className="min-h-screen flex items-center justify-center geometric-pattern px-4 py-8">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
         className="w-full max-w-md"
       >
-        <div className="glass-effect rounded-3xl p-8 shadow-2xl border border-border/50">
+        <div className="glass-effect rounded-3xl p-8 shadow-2xl border border-border/30">
           {/* Logo */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="gradient-primary rounded-full p-4">
-              <MessageCircle className="w-8 h-8 text-white" />
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+            className="flex items-center justify-center mb-6"
+          >
+            <div className="gradient-soft rounded-full p-4 shadow-lg">
+              <MessageCircle className="w-10 h-10 text-white" />
             </div>
-          </div>
+          </motion.div>
 
-          <h1 className="text-3xl font-bold text-center mb-2 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">
-            {isLogin ? "Welcome Back" : "Join FamilyConnect"}
-          </h1>
-          <p className="text-center text-muted-foreground mb-8">
-            {isLogin
-              ? "Sign in to continue your conversations"
-              : "Create your account to get started"}
-          </p>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <h1 className="text-3xl font-bold text-center mb-2 text-foreground">
+              {isLogin ? "Welcome Back" : "Join FamilyConnect"}
+            </h1>
+            <p className="text-center text-muted-foreground mb-8">
+              {isLogin
+                ? "Sign in to continue your conversations"
+                : "Create your account to get started"}
+            </p>
+          </motion.div>
 
-          <form onSubmit={handleAuth} className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-5">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="John Doe"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required={!isLogin}
-                  className="bg-background/50"
-                />
-              </div>
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-2"
+              >
+                <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required={!isLogin}
+                    className="pl-10 bg-background/60 border-border/50 focus:border-primary"
+                  />
+                </div>
+              </motion.div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="bg-background/50"
-              />
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="pl-10 bg-background/60 border-border/50 focus:border-primary"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="bg-background/50"
-              />
+              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className="pl-10 bg-background/60 border-border/50 focus:border-primary"
+                />
+              </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full gradient-primary hover:gradient-primary-hover text-white font-semibold"
+              className="w-full gradient-soft hover:opacity-90 text-white font-semibold h-12 text-base shadow-lg shadow-primary/20 transition-all"
               disabled={loading}
             >
-              {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Please wait...
+                </div>
+              ) : (
+                isLogin ? "Sign In" : "Create Account"
+              )}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
+            <span className="text-sm text-muted-foreground">
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+            </span>
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
+              className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
             >
-              {isLogin
-                ? "Don't have an account? Sign up"
-                : "Already have an account? Sign in"}
+              {isLogin ? "Sign up" : "Sign in"}
             </button>
           </div>
         </div>

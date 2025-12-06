@@ -286,28 +286,58 @@ export const usePeerConnection = (currentUserId: string) => {
   };
 
   const endCall = () => {
+    console.log("Ending call - cleaning up all resources");
+    
     // Clear call timeout
     clearCallTimeout();
 
-    // Stop all ringtones
-    incomingRingtone.current?.pause();
-    outgoingRingtone.current?.pause();
-    if (incomingRingtone.current) incomingRingtone.current.currentTime = 0;
-    if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
+    // Stop all ringtones immediately
+    if (incomingRingtone.current) {
+      incomingRingtone.current.pause();
+      incomingRingtone.current.currentTime = 0;
+    }
+    if (outgoingRingtone.current) {
+      outgoingRingtone.current.pause();
+      outgoingRingtone.current.currentTime = 0;
+    }
 
-    // Stop all tracks
-    localStream?.getTracks().forEach((track) => track.stop());
-    remoteStream?.getTracks().forEach((track) => track.stop());
+    // Stop all local tracks immediately - this releases camera/mic permissions
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        console.log(`Stopping local track: ${track.kind}`);
+        track.stop();
+        track.enabled = false;
+      });
+    }
 
-    // Close connection
-    currentCallRef.current?.close();
-    currentCallRef.current = null;
+    // Stop all remote tracks
+    if (remoteStream) {
+      remoteStream.getTracks().forEach((track) => {
+        console.log(`Stopping remote track: ${track.kind}`);
+        track.stop();
+        track.enabled = false;
+      });
+    }
 
+    // Close the peer connection
+    if (currentCallRef.current) {
+      try {
+        currentCallRef.current.close();
+      } catch (e) {
+        console.log("Error closing call:", e);
+      }
+      currentCallRef.current = null;
+    }
+
+    // Reset all state
     setLocalStream(null);
     setRemoteStream(null);
     setIsCameraOn(true);
     setIsMicOn(true);
     setIsVideoCall(true);
+    setIncomingCall(null);
+
+    console.log("Call cleanup complete - camera/mic should be released");
   };
 
   return {
