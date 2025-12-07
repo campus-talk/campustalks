@@ -312,10 +312,13 @@ export type Database = {
           conversation_id: string
           created_at: string | null
           deleted_for_everyone: boolean | null
+          disappearing_at: string | null
           id: string
+          is_forwarded: boolean | null
           is_read: boolean | null
           message_type: string | null
           reply_to: string | null
+          scheduled_at: string | null
           sender_id: string
         }
         Insert: {
@@ -323,10 +326,13 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           deleted_for_everyone?: boolean | null
+          disappearing_at?: string | null
           id?: string
+          is_forwarded?: boolean | null
           is_read?: boolean | null
           message_type?: string | null
           reply_to?: string | null
+          scheduled_at?: string | null
           sender_id: string
         }
         Update: {
@@ -334,10 +340,13 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           deleted_for_everyone?: boolean | null
+          disappearing_at?: string | null
           id?: string
+          is_forwarded?: boolean | null
           is_read?: boolean | null
           message_type?: string | null
           reply_to?: string | null
+          scheduled_at?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -402,6 +411,35 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      starred_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "starred_messages_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

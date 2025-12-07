@@ -1,14 +1,16 @@
 import { motion } from "framer-motion";
-import { Reply, Forward, Copy, Trash2 } from "lucide-react";
+import { Reply, Forward, Copy, Trash2, Star, StarOff } from "lucide-react";
 
 interface MessageContextMenuProps {
   isOpen: boolean;
   position: { x: number; y: number };
   isSentMessage: boolean;
+  isStarred?: boolean;
   onReply: () => void;
   onForward: () => void;
   onCopy: () => void;
   onDelete: () => void;
+  onStar: () => void;
   onClose: () => void;
 }
 
@@ -16,10 +18,12 @@ const MessageContextMenu = ({
   isOpen,
   position,
   isSentMessage,
+  isStarred = false,
   onReply,
   onForward,
   onCopy,
   onDelete,
+  onStar,
   onClose,
 }: MessageContextMenuProps) => {
   if (!isOpen) return null;
@@ -67,6 +71,22 @@ const MessageContextMenu = ({
         >
           <Copy className="w-4 h-4" />
           <span className="text-sm font-medium">Copy</span>
+        </button>
+        <button
+          onClick={onStar}
+          className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-accent/10 transition-colors text-foreground"
+        >
+          {isStarred ? (
+            <>
+              <StarOff className="w-4 h-4" />
+              <span className="text-sm font-medium">Unstar</span>
+            </>
+          ) : (
+            <>
+              <Star className="w-4 h-4" />
+              <span className="text-sm font-medium">Star</span>
+            </>
+          )}
         </button>
         <div className="h-px bg-border/50 my-1" />
         <button

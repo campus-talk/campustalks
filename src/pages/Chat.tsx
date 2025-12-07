@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { usePeerConnection } from "@/hooks/usePeerConnection";
@@ -14,6 +14,8 @@ import VideoCallScreen from "@/components/VideoCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
+import ForwardMessageDialog from "@/components/ForwardMessageDialog";
+import ScheduleMessageDialog from "@/components/ScheduleMessageDialog";
 
 interface Reaction {
   id: string;
@@ -66,6 +68,10 @@ const Chat = () => {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionSearchQuery, setMentionSearchQuery] = useState("");
+  const [starredMessages, setStarredMessages] = useState<string[]>([]);
+  const [forwardDialog, setForwardDialog] = useState<{ messageId: string; content: string; type: string } | null>(null);
+  const [scheduleDialog, setScheduleDialog] = useState(false);
+  const [scheduledMessage, setScheduledMessage] = useState("");
   
   const {
     startCall,
@@ -151,9 +157,24 @@ const Chat = () => {
       }
     }
 
-    // Load messages and call logs
+    // Load messages, call logs, and starred messages
     loadMessages();
     loadCallLogs();
+    loadStarredMessages();
+  };
+
+  const loadStarredMessages = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from("starred_messages")
+      .select("message_id")
+      .eq("user_id", user.id);
+    
+    if (data) {
+      setStarredMessages(data.map(s => s.message_id));
+    }
   };
 
   const loadCallLogs = async () => {
@@ -414,6 +435,102 @@ const Chat = () => {
     }
   };
 
+  const handleStarMessage = async (messageId: string) => {
+    try {
+      const isStarred = starredMessages.includes(messageId);
+      
+      if (isStarred) {
+        await supabase
+          .from("starred_messages")
+          .delete()
+          .eq("message_id", messageId)
+          .eq("user_id", currentUserId);
+        
+        setStarredMessages(prev => prev.filter(id => id !== messageId));
+        toast({ title: "Unstarred", description: "Message unstarred" });
+      } else {
+        await supabase
+          .from("starred_messages")
+          .insert({ message_id: messageId, user_id: currentUserId });
+        
+        setStarredMessages(prev => [...prev, messageId]);
+        toast({ title: "Starred", description: "Message starred" });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+    setContextMenu(null);
+  };
+
+  const handleForwardMessage = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (message) {
+      setForwardDialog({
+        messageId: message.id,
+        content: message.content,
+        type: message.message_type,
+      });
+    }
+    setContextMenu(null);
+  };
+
+  const handleForwardToConversations = async (conversationIds: string[]) => {
+    if (!forwardDialog) return;
+    
+    try {
+      for (const convId of conversationIds) {
+        await supabase.from("messages").insert({
+          conversation_id: convId,
+          sender_id: currentUserId,
+          content: forwardDialog.content,
+          message_type: forwardDialog.type,
+          is_forwarded: true,
+        });
+      }
+      
+      toast({
+        title: "Forwarded",
+        description: `Message forwarded to ${conversationIds.length} chat(s)`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+    setForwardDialog(null);
+  };
+
+  const handleScheduleMessage = async (scheduledAt: Date) => {
+    try {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: currentUserId,
+        content: scheduledMessage,
+        message_type: "text",
+        scheduled_at: scheduledAt.toISOString(),
+      });
+      
+      toast({
+        title: "Scheduled",
+        description: `Message scheduled for ${scheduledAt.toLocaleString()}`,
+      });
+      setScheduledMessage("");
+      setNewMessage("");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -456,14 +573,30 @@ const Chat = () => {
         isOpen={!!contextMenu}
         position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : { x: 0, y: 0 }}
         isSentMessage={contextMenu?.isSent || false}
+        isStarred={contextMenu ? starredMessages.includes(contextMenu.messageId) : false}
         onReply={() => contextMenu && handleReplyMessage(contextMenu.messageId)}
-        onForward={() => {
-          toast({ title: "Forward", description: "Feature coming soon!" });
-          setContextMenu(null);
-        }}
+        onForward={() => contextMenu && handleForwardMessage(contextMenu.messageId)}
         onCopy={() => contextMenu && handleCopyMessage(contextMenu.messageId)}
         onDelete={() => contextMenu && handleDeleteMessage(contextMenu.messageId)}
+        onStar={() => contextMenu && handleStarMessage(contextMenu.messageId)}
         onClose={() => setContextMenu(null)}
+      />
+
+      {/* Forward Message Dialog */}
+      <ForwardMessageDialog
+        isOpen={!!forwardDialog}
+        messageContent={forwardDialog?.content || ""}
+        messageType={forwardDialog?.type || "text"}
+        onClose={() => setForwardDialog(null)}
+        onForward={handleForwardToConversations}
+      />
+
+      {/* Schedule Message Dialog */}
+      <ScheduleMessageDialog
+        isOpen={scheduleDialog}
+        message={scheduledMessage}
+        onClose={() => setScheduleDialog(false)}
+        onSchedule={handleScheduleMessage}
       />
 
       {/* Delete Message Dialog */}
@@ -697,6 +830,9 @@ const Chat = () => {
                       <p className="break-words">{message.content}</p>
                     )}
                     <div className={`flex items-center gap-1 mt-1 text-xs ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
+                      {starredMessages.includes(message.id) && (
+                        <Star className="w-3 h-3 fill-current text-yellow-400" />
+                      )}
                       <span>
                         {new Date(message.created_at).toLocaleTimeString([], {
                           hour: "2-digit",
@@ -762,7 +898,7 @@ const Chat = () => {
             />
           )}
           
-          <form onSubmit={handleSendMessage} className="flex gap-3">
+          <form onSubmit={handleSendMessage} className="flex gap-2">
             <input
               type="file"
               id="image-upload"
@@ -785,6 +921,21 @@ const Chat = () => {
               placeholder={isGroupChat ? "Type @ to mention..." : "Type a message..."}
               className="flex-1 bg-background/50"
             />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="flex-shrink-0"
+              onClick={() => {
+                if (newMessage.trim()) {
+                  setScheduledMessage(newMessage);
+                  setScheduleDialog(true);
+                }
+              }}
+              disabled={!newMessage.trim()}
+            >
+              <Clock className="w-5 h-5" />
+            </Button>
             <Button
               type="submit"
               disabled={sending || !newMessage.trim()}
