@@ -130,11 +130,14 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
   }, [currentUserId]);
 
   const handleMyStatusClick = () => {
+    // Always open create dialog - user can view existing or add new
+    setCreateDialogOpen(true);
+  };
+
+  const handleViewMyStatuses = () => {
     if (myStatuses.length > 0) {
       setSelectedStatuses(myStatuses);
       setViewerOpen(true);
-    } else {
-      setCreateDialogOpen(true);
     }
   };
 
@@ -159,13 +162,15 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
     <>
       <ScrollArea className="w-full">
         <div className="flex gap-4 px-4 py-3">
-          {/* My Status */}
+          {/* My Status - Click to add new */}
           <StatusCircle
             avatarUrl={currentUserProfile.avatar_url}
             name={currentUserProfile.full_name}
             hasStatus={myStatuses.length > 0}
             isOwn
             onClick={handleMyStatusClick}
+            statusCount={myStatuses.length}
+            onViewStatus={myStatuses.length > 0 ? handleViewMyStatuses : undefined}
           />
 
           {/* Other Users' Statuses */}
@@ -177,6 +182,7 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
               hasStatus
               isViewed={!group.hasUnviewed}
               onClick={() => handleOtherStatusClick(group)}
+              statusCount={group.statuses.length}
             />
           ))}
         </div>
