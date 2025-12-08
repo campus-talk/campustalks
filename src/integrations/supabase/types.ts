@@ -441,6 +441,83 @@ export type Database = {
           },
         ]
       }
+      status_views: {
+        Row: {
+          id: string
+          status_id: string
+          viewed_at: string
+          viewer_id: string
+        }
+        Insert: {
+          id?: string
+          status_id: string
+          viewed_at?: string
+          viewer_id: string
+        }
+        Update: {
+          id?: string
+          status_id?: string
+          viewed_at?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_views_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "status_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statuses: {
+        Row: {
+          background_color: string | null
+          content: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          user_id: string
+        }
+        Insert: {
+          background_color?: string | null
+          content?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          user_id: string
+        }
+        Update: {
+          background_color?: string | null
+          content?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statuses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
