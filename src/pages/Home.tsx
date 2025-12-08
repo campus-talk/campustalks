@@ -108,9 +108,9 @@ const Home = () => {
             <div className="w-16 h-16 gradient-soft rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               <MessageCircle className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold mb-2 text-foreground">Welcome to FamilyConnect</h1>
+            <h1 className="text-2xl font-bold mb-2 text-foreground">Welcome to Campus Talks</h1>
             <p className="text-muted-foreground mb-6">
-              Connect with your family and friends instantly
+              Connect with your campus community instantly
             </p>
             <Button
               onClick={() => navigate("/search")}

@@ -8,6 +8,7 @@ import { Search, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateGroupDialog from "@/components/CreateGroupDialog";
+import StatusBar from "@/components/StatusBar";
 
 interface Conversation {
   id: string;
@@ -39,6 +40,7 @@ const Conversations = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const [totalUnread, setTotalUnread] = useState(0);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
@@ -49,7 +51,20 @@ const Conversations = () => {
 
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) setCurrentUserId(user.id);
+    if (user) {
+      setCurrentUserId(user.id);
+      
+      // Fetch user profile for StatusBar
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url")
+        .eq("id", user.id)
+        .single();
+      
+      if (profile) {
+        setCurrentUserProfile(profile);
+      }
+    }
     return user?.id || "";
   };
 
@@ -253,6 +268,16 @@ const Conversations = () => {
         onOpenChange={setCreateGroupOpen}
         currentUserId={currentUserId}
       />
+
+      {/* Status Bar */}
+      {currentUserProfile && (
+        <div className="border-b border-border/50">
+          <StatusBar
+            currentUserId={currentUserId}
+            currentUserProfile={currentUserProfile}
+          />
+        </div>
+      )}
 
       {/* Conversations List */}
       <div className="max-w-7xl mx-auto">

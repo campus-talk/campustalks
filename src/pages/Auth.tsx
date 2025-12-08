@@ -93,7 +93,7 @@ const Auth = () => {
             transition={{ delay: 0.15 }}
           >
             <h1 className="text-3xl font-bold text-center mb-2 text-foreground">
-              {isLogin ? "Welcome Back" : "Join FamilyConnect"}
+              {isLogin ? "Welcome Back" : "Join Campus Talks"}
             </h1>
             <p className="text-center text-muted-foreground mb-8">
               {isLogin
