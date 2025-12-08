@@ -1,18 +1,87 @@
+import { useState, useEffect } from "react";
 import { MessageSquare, Phone, Bell, User, Users } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    loadCounts();
+    subscribeToUpdates();
+  }, []);
+
+  const loadCounts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Load unread notifications count
+    const { count: notifCount } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    setUnreadNotifications(notifCount || 0);
+
+    // Load unread messages count
+    const { data: conversations } = await supabase
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("user_id", user.id);
+
+    if (conversations && conversations.length > 0) {
+      const convIds = conversations.map(c => c.conversation_id);
+      
+      const { count: msgCount } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .in("conversation_id", convIds)
+        .neq("sender_id", user.id)
+        .eq("is_read", false);
+
+      setUnreadMessages(msgCount || 0);
+    }
+  };
+
+  const subscribeToUpdates = () => {
+    // Subscribe to notifications changes
+    const notifChannel = supabase
+      .channel("nav-notifications")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications" },
+        () => loadCounts()
+      )
+      .subscribe();
+
+    // Subscribe to messages changes
+    const msgChannel = supabase
+      .channel("nav-messages")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => loadCounts()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(notifChannel);
+      supabase.removeChannel(msgChannel);
+    };
+  };
 
   const navItems = [
-    { icon: MessageSquare, label: "Chats", path: "/conversations" },
-    { icon: Users, label: "Groups", path: "/groups" },
-    { icon: Phone, label: "Calls", path: "/calls" },
-    { icon: Bell, label: "Alerts", path: "/notifications" },
-    { icon: User, label: "Account", path: "/settings" },
+    { icon: MessageSquare, label: "Chats", path: "/conversations", badge: unreadMessages },
+    { icon: Users, label: "Groups", path: "/groups", badge: 0 },
+    { icon: Phone, label: "Calls", path: "/calls", badge: 0 },
+    { icon: Bell, label: "Notifications", path: "/notifications", badge: unreadNotifications },
+    { icon: User, label: "Account", path: "/settings", badge: 0 },
   ];
 
   return (
@@ -34,7 +103,7 @@ const BottomNav = () => {
               <motion.div
                 whileTap={{ scale: 0.85 }}
                 className={cn(
-                  "p-2 rounded-xl transition-all duration-300",
+                  "p-2 rounded-xl transition-all duration-300 relative",
                   isActive 
                     ? "bg-primary/15 shadow-sm" 
                     : "hover:bg-muted"
@@ -47,6 +116,16 @@ const BottomNav = () => {
                   )}
                   strokeWidth={isActive ? 2.5 : 2}
                 />
+                {/* Badge for unread count */}
+                {item.badge > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 min-w-5 h-5 flex items-center justify-center bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full px-1"
+                  >
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </motion.span>
+                )}
               </motion.div>
               <span
                 className={cn(
