@@ -240,20 +240,16 @@ const VideoCallScreen = ({
         </>
       )}
 
-      {/* Add Member Button */}
+      {/* Call Info Badge */}
       <motion.div 
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="absolute top-4 left-4"
+        className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5"
       >
-        <Button
-          onClick={() => setShowAddMember(true)}
-          size="icon"
-          className="rounded-full w-12 h-12 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
-        >
-          <UserPlus className="w-5 h-5 text-white" />
-        </Button>
+        <span className="text-white text-sm font-medium">
+          {isVideoCall ? "Video Call" : "Audio Call"}
+        </span>
       </motion.div>
 
       {/* Add Member Modal */}
@@ -334,60 +330,71 @@ const VideoCallScreen = ({
         )}
       </AnimatePresence>
 
-      {/* Controls */}
+      {/* Controls - Fixed at bottom center for mobile */}
       <motion.div 
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 sm:gap-4 p-3 bg-black/30 backdrop-blur-md rounded-full"
+        className="fixed bottom-0 left-0 right-0 pb-8 pt-6 px-4 bg-gradient-to-t from-black/60 to-transparent"
       >
-        {isVideoCall && onSwitchCamera && (
+        <div className="flex items-center justify-center gap-4 max-w-sm mx-auto">
+          {/* Add Member Button - Mobile Friendly */}
           <Button
-            onClick={onSwitchCamera}
+            onClick={() => setShowAddMember(true)}
             size="lg"
-            variant="secondary"
-            className="rounded-full w-12 h-12 sm:w-14 sm:h-14 p-0 bg-white/15 hover:bg-white/25 border-0 backdrop-blur-sm"
+            className="rounded-full w-12 h-12 p-0 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
           >
-            <SwitchCamera className="w-5 h-5 text-white" />
+            <UserPlus className="w-5 h-5 text-white" />
           </Button>
-        )}
 
-        {isVideoCall && (
+          {isVideoCall && onSwitchCamera && (
+            <Button
+              onClick={onSwitchCamera}
+              size="lg"
+              variant="secondary"
+              className="rounded-full w-12 h-12 p-0 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
+            >
+              <SwitchCamera className="w-5 h-5 text-white" />
+            </Button>
+          )}
+
+          {isVideoCall && (
+            <Button
+              onClick={onToggleCamera}
+              size="lg"
+              variant={isCameraOn ? "secondary" : "destructive"}
+              className={`rounded-full w-12 h-12 p-0 ${isCameraOn ? 'bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm' : ''}`}
+            >
+              {isCameraOn ? (
+                <Video className="w-5 h-5 text-white" />
+              ) : (
+                <VideoOff className="w-5 h-5" />
+              )}
+            </Button>
+          )}
+          
           <Button
-            onClick={onToggleCamera}
+            onClick={onToggleMic}
             size="lg"
-            variant={isCameraOn ? "secondary" : "destructive"}
-            className={`rounded-full w-12 h-12 sm:w-14 sm:h-14 p-0 ${isCameraOn ? 'bg-white/15 hover:bg-white/25 border-0 backdrop-blur-sm' : ''}`}
+            variant={isMicOn ? "secondary" : "destructive"}
+            className={`rounded-full w-12 h-12 p-0 ${isMicOn ? 'bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm' : ''}`}
           >
-            {isCameraOn ? (
-              <Video className="w-5 h-5 text-white" />
+            {isMicOn ? (
+              <Mic className="w-5 h-5 text-white" />
             ) : (
-              <VideoOff className="w-5 h-5" />
+              <MicOff className="w-5 h-5" />
             )}
           </Button>
-        )}
-        
-        <Button
-          onClick={onToggleMic}
-          size="lg"
-          variant={isMicOn ? "secondary" : "destructive"}
-          className={`rounded-full w-12 h-12 sm:w-14 sm:h-14 p-0 ${isMicOn ? 'bg-white/15 hover:bg-white/25 border-0 backdrop-blur-sm' : ''}`}
-        >
-          {isMicOn ? (
-            <Mic className="w-5 h-5 text-white" />
-          ) : (
-            <MicOff className="w-5 h-5" />
-          )}
-        </Button>
 
-        <Button
-          onClick={onEndCall}
-          size="lg"
-          variant="destructive"
-          className="rounded-full w-14 h-14 sm:w-16 sm:h-16 p-0 shadow-lg shadow-destructive/30"
-        >
-          <PhoneOff className="w-6 h-6" />
-        </Button>
+          <Button
+            onClick={onEndCall}
+            size="lg"
+            variant="destructive"
+            className="rounded-full w-14 h-14 p-0 shadow-lg shadow-destructive/30"
+          >
+            <PhoneOff className="w-6 h-6" />
+          </Button>
+        </div>
       </motion.div>
     </motion.div>
   );
