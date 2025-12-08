@@ -16,6 +16,7 @@ import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
 import ForwardMessageDialog from "@/components/ForwardMessageDialog";
 import ScheduleMessageDialog from "@/components/ScheduleMessageDialog";
+import EncryptionBanner from "@/components/EncryptionBanner";
 
 interface Reaction {
   id: string;
@@ -98,10 +99,38 @@ const Chat = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+    // Mark unread messages as read when viewing
+    markMessagesAsRead();
+  }, [messages, currentUserId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const markMessagesAsRead = async () => {
+    if (!currentUserId || !conversationId) return;
+    
+    // Get unread messages not sent by current user
+    const unreadMessages = messages.filter(
+      m => !m.is_read && m.sender_id !== currentUserId
+    );
+    
+    if (unreadMessages.length === 0) return;
+    
+    const unreadIds = unreadMessages.map(m => m.id);
+    
+    // Update messages as read
+    const { error } = await supabase
+      .from("messages")
+      .update({ is_read: true })
+      .in("id", unreadIds);
+    
+    if (!error) {
+      // Update local state immediately
+      setMessages(prev => prev.map(m => 
+        unreadIds.includes(m.id) ? { ...m, is_read: true } : m
+      ));
+    }
   };
 
   const initializeChat = async () => {
@@ -266,15 +295,62 @@ const Chat = () => {
 
     setSending(true);
     try {
-      const { error } = await supabase.from("messages").insert({
+      const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
         content: newMessage.trim(),
         message_type: "text",
         reply_to: replyingTo?.id || null,
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Create notification for the receiver
+      if (!isGroupChat && otherUser) {
+        // Get sender profile for notification
+        const { data: senderProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", currentUserId)
+          .single();
+
+        await supabase.from("notifications").insert({
+          user_id: otherUser.id,
+          type: "message",
+          title: senderProfile?.full_name || "New message",
+          body: newMessage.trim().substring(0, 100),
+          sender_id: currentUserId,
+          conversation_id: conversationId,
+          message_id: messageData?.id,
+        });
+      } else if (isGroupChat && groupId) {
+        // For group chat, notify all members except sender
+        const { data: members } = await supabase
+          .from("group_members")
+          .select("user_id")
+          .eq("group_id", groupId)
+          .neq("user_id", currentUserId);
+
+        const { data: senderProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", currentUserId)
+          .single();
+
+        if (members) {
+          const notifications = members.map(m => ({
+            user_id: m.user_id,
+            type: "message",
+            title: `${senderProfile?.full_name} in ${otherUser?.full_name}`,
+            body: newMessage.trim().substring(0, 100),
+            sender_id: currentUserId,
+            conversation_id: conversationId,
+            message_id: messageData?.id,
+          }));
+
+          await supabase.from("notifications").insert(notifications);
+        }
+      }
 
       setNewMessage("");
       setReplyingTo(null);
@@ -659,7 +735,7 @@ const Chat = () => {
               variant="ghost"
               size="icon"
               className="text-white hover:bg-white/20"
-              onClick={() => otherUser && startCall(otherUser.id)}
+              onClick={() => otherUser && startCall(otherUser.id, true, conversationId, isGroupChat)}
             >
               <Video className="w-5 h-5" />
             </Button>
@@ -667,12 +743,19 @@ const Chat = () => {
               variant="ghost"
               size="icon"
               className="text-white hover:bg-white/20"
-              onClick={() => otherUser && startAudioCall(otherUser.id)}
+              onClick={() => otherUser && startAudioCall(otherUser.id, conversationId, isGroupChat)}
             >
               <Phone className="w-5 h-5" />
             </Button>
           </div>
         </header>
+
+        {/* E2E Encryption Banner */}
+        <EncryptionBanner
+          isGroup={isGroupChat}
+          groupName={isGroupChat ? otherUser?.full_name : undefined}
+          userName={!isGroupChat ? otherUser?.full_name : undefined}
+        />
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
@@ -728,7 +811,7 @@ const Chat = () => {
                     <div
                       onClick={() => {
                         if (otherUser) {
-                          isVideo ? startCall(otherUser.id) : startAudioCall(otherUser.id);
+                          isVideo ? startCall(otherUser.id, true, conversationId, isGroupChat) : startAudioCall(otherUser.id, conversationId, isGroupChat);
                         }
                       }}
                       className={`flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] ${

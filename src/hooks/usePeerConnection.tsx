@@ -100,7 +100,7 @@ export const usePeerConnection = (currentUserId: string) => {
     }
   };
 
-  const startCall = async (remoteUserId: string, videoEnabled = true) => {
+  const startCall = async (remoteUserId: string, videoEnabled = true, conversationId?: string, isGroup = false) => {
     try {
       // Play outgoing ringtone
       outgoingRingtone.current?.play().catch(e => console.log("Ringtone play failed:", e));
@@ -115,6 +115,12 @@ export const usePeerConnection = (currentUserId: string) => {
         console.log("Call timeout - no answer");
         outgoingRingtone.current?.pause();
         if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
+        
+        // Log missed call
+        if (conversationId) {
+          logCall(conversationId, remoteUserId, videoEnabled ? 'video' : 'audio', 'missed');
+        }
+        
         endCall();
       }, CALL_TIMEOUT_MS);
 
@@ -136,9 +142,14 @@ export const usePeerConnection = (currentUserId: string) => {
       });
       setLocalStream(stream);
 
+      // If this is a group call, notify all group members
+      if (isGroup && conversationId) {
+        await notifyGroupMembers(conversationId, videoEnabled);
+      }
+
       // Call the remote peer with metadata about call type
       const call = peerRef.current?.call(remoteUserId, stream, {
-        metadata: { isVideoCall: videoEnabled }
+        metadata: { isVideoCall: videoEnabled, conversationId }
       });
       if (!call) return;
 
@@ -150,6 +161,12 @@ export const usePeerConnection = (currentUserId: string) => {
         clearCallTimeout();
         outgoingRingtone.current?.pause();
         if (outgoingRingtone.current) outgoingRingtone.current.currentTime = 0;
+        
+        // Log answered call
+        if (conversationId) {
+          logCall(conversationId, remoteUserId, videoEnabled ? 'video' : 'audio', 'answered');
+        }
+        
         setRemoteStream(remoteStream);
       });
 
@@ -163,8 +180,72 @@ export const usePeerConnection = (currentUserId: string) => {
     }
   };
 
-  const startAudioCall = async (remoteUserId: string) => {
-    await startCall(remoteUserId, false);
+  const logCall = async (conversationId: string, receiverId: string, callType: string, callStatus: string) => {
+    try {
+      await supabase.from("call_logs").insert({
+        conversation_id: conversationId,
+        caller_id: currentUserId,
+        receiver_id: receiverId,
+        call_type: callType,
+        call_status: callStatus,
+      });
+    } catch (e) {
+      console.error("Error logging call:", e);
+    }
+  };
+
+  const notifyGroupMembers = async (conversationId: string, isVideo: boolean) => {
+    try {
+      // Get group from conversation
+      const { data: convData } = await supabase
+        .from("conversations")
+        .select("group_id")
+        .eq("id", conversationId)
+        .single();
+
+      if (!convData?.group_id) return;
+
+      // Get all group members except current user
+      const { data: members } = await supabase
+        .from("group_members")
+        .select("user_id")
+        .eq("group_id", convData.group_id)
+        .neq("user_id", currentUserId);
+
+      if (!members) return;
+
+      // Get caller profile
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .single();
+
+      // Get group info
+      const { data: groupInfo } = await supabase
+        .from("groups")
+        .select("name")
+        .eq("id", convData.group_id)
+        .single();
+
+      // Create notifications for all members
+      const notifications = members.map(m => ({
+        user_id: m.user_id,
+        type: isVideo ? "incoming_call" : "call",
+        title: `${isVideo ? 'Video' : 'Voice'} call in ${groupInfo?.name}`,
+        body: `${callerProfile?.full_name} started a ${isVideo ? 'video' : 'voice'} call`,
+        sender_id: currentUserId,
+        conversation_id: conversationId,
+      }));
+
+      await supabase.from("notifications").insert(notifications);
+    } catch (e) {
+      console.error("Error notifying group members:", e);
+    }
+  };
+
+  const startAudioCall = async (remoteUserId: string, conversationId?: string, isGroup = false) => {
+    await startCall(remoteUserId, false, conversationId, isGroup);
   };
 
   const acceptCall = async () => {
