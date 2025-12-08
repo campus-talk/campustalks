@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight } from "lucide-react";
+import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight, Phone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import BlockedUsersList from "@/components/BlockedUsersList";
 import BottomNav from "@/components/BottomNav";
+import UpdatePhoneDialog from "@/components/UpdatePhoneDialog";
 
 interface Profile {
   id: string;
@@ -21,6 +22,7 @@ interface Profile {
   avatar_url: string | null;
   bio: string | null;
   status: string;
+  phone: string | null;
 }
 
 const Settings = () => {
@@ -34,6 +36,8 @@ const Settings = () => {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [loading, setLoading] = useState(false);
   const [blockedUsersOpen, setBlockedUsersOpen] = useState(false);
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [userPhone, setUserPhone] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
@@ -66,6 +70,7 @@ const Settings = () => {
     setBio(data.bio || "");
     setStatus(data.status);
     setAvatarPreview(data.avatar_url || "");
+    setUserPhone(data.phone || null);
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,6 +255,25 @@ const Settings = () => {
               {loading ? "Saving..." : "Save Changes"}
             </Button>
 
+            {/* Phone Number Section */}
+            <button
+              onClick={() => setPhoneDialogOpen(true)}
+              className="w-full flex items-center justify-between p-4 rounded-xl bg-background/50 hover:bg-background/80 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Phone className="w-5 h-5 text-primary" />
+                </div>
+                <div className="text-left">
+                  <span className="font-medium block">Phone Number</span>
+                  <span className="text-sm text-muted-foreground">
+                    {userPhone || "Not added"}
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
+
             {/* Blocked Users Section */}
             <button
               onClick={() => setBlockedUsersOpen(true)}
@@ -291,6 +315,15 @@ const Settings = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Phone Update Dialog */}
+      <UpdatePhoneDialog
+        open={phoneDialogOpen}
+        onOpenChange={setPhoneDialogOpen}
+        currentPhone={userPhone}
+        userId={profile?.id || ""}
+        onPhoneUpdated={(phone) => setUserPhone(phone)}
+      />
 
       <BottomNav />
     </div>

@@ -382,6 +382,7 @@ export type Database = {
           full_name: string
           id: string
           last_seen: string | null
+          phone: string | null
           status: string | null
           unique_key: string
           username: string | null
@@ -394,6 +395,7 @@ export type Database = {
           full_name: string
           id: string
           last_seen?: string | null
+          phone?: string | null
           status?: string | null
           unique_key: string
           username?: string | null
@@ -406,6 +408,7 @@ export type Database = {
           full_name?: string
           id?: string
           last_seen?: string | null
+          phone?: string | null
           status?: string | null
           unique_key?: string
           username?: string | null
