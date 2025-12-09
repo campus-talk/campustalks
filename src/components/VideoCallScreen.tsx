@@ -24,6 +24,7 @@ interface VideoCallScreenProps {
   isMicOn: boolean;
   isVideoCall: boolean;
   onAddParticipant?: (userId: string) => void;
+  isFrontCamera?: boolean;
 }
 
 const VideoCallScreen = ({
@@ -37,9 +38,12 @@ const VideoCallScreen = ({
   isMicOn,
   isVideoCall,
   onAddParticipant,
+  isFrontCamera = true,
 }: VideoCallScreenProps) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoSmallRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoSmallRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [isLocalExpanded, setIsLocalExpanded] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -48,23 +52,33 @@ const VideoCallScreen = ({
   const [searching, setSearching] = useState(false);
   const { toast } = useToast();
 
-  // Set local video stream
+  // Set local video stream to all local video refs
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+    if (localStream) {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      if (localVideoSmallRef.current) {
+        localVideoSmallRef.current.srcObject = localStream;
+      }
     }
-  }, [localStream, isLocalExpanded]);
+  }, [localStream]);
 
-  // Set remote video stream
+  // Set remote video stream to all remote video refs
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteStream) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+      if (remoteVideoSmallRef.current) {
+        remoteVideoSmallRef.current.srcObject = remoteStream;
+      }
+      // For audio calls, use audio element
+      if (remoteAudioRef.current && !isVideoCall) {
+        remoteAudioRef.current.srcObject = remoteStream;
+      }
     }
-    // For audio calls, use audio element
-    if (remoteAudioRef.current && remoteStream && !isVideoCall) {
-      remoteAudioRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream, isVideoCall, isLocalExpanded]);
+  }, [remoteStream, isVideoCall]);
 
   const handleSwapVideos = () => {
     setIsLocalExpanded(prev => !prev);
@@ -115,6 +129,11 @@ const VideoCallScreen = ({
     setSearchResults([]);
   };
 
+  // Local video should be mirrored only when using front camera (selfie-style)
+  // Remote video should NEVER be mirrored
+  const localVideoStyle = isFrontCamera ? { transform: 'scaleX(-1)' } : { transform: 'none' };
+  const remoteVideoStyle = { transform: 'none' }; // Never mirror remote
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -128,7 +147,7 @@ const VideoCallScreen = ({
           {/* Large Video - Shows remote by default, local when expanded */}
           <div className="w-full h-full relative">
             {isLocalExpanded ? (
-              // Show local video large
+              // Show local video large (mirrored for front camera)
               isCameraOn ? (
                 <video
                   ref={localVideoRef}
@@ -136,7 +155,7 @@ const VideoCallScreen = ({
                   playsInline
                   muted
                   className="w-full h-full object-cover"
-                  style={{ transform: 'none' }}
+                  style={localVideoStyle}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
@@ -144,14 +163,14 @@ const VideoCallScreen = ({
                 </div>
               )
             ) : (
-              // Show remote video large
+              // Show remote video large (never mirrored)
               remoteStream ? (
                 <video
                   ref={remoteVideoRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
-                  style={{ transform: 'none' }}
+                  style={remoteVideoStyle}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 via-accent/10 to-primary/5">
@@ -174,14 +193,14 @@ const VideoCallScreen = ({
             className="absolute top-4 right-4 w-28 h-40 sm:w-32 sm:h-48 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl bg-black cursor-pointer hover:border-primary/50 transition-all active:scale-95"
           >
             {isLocalExpanded ? (
-              // Show remote video small when local is expanded
+              // Show remote video small when local is expanded (never mirrored)
               remoteStream ? (
                 <video
-                  ref={!isLocalExpanded ? undefined : remoteVideoRef}
+                  ref={remoteVideoSmallRef}
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
-                  style={{ transform: 'none' }}
+                  style={remoteVideoStyle}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
@@ -191,15 +210,15 @@ const VideoCallScreen = ({
                 </div>
               )
             ) : (
-              // Show local video small by default
+              // Show local video small by default (mirrored for front camera)
               isCameraOn ? (
                 <video
-                  ref={!isLocalExpanded ? localVideoRef : undefined}
+                  ref={localVideoSmallRef}
                   autoPlay
                   playsInline
                   muted
                   className="w-full h-full object-cover"
-                  style={{ transform: 'none' }}
+                  style={localVideoStyle}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
@@ -245,7 +264,7 @@ const VideoCallScreen = ({
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5"
+        className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm rounded-full px-4 py-2"
       >
         <span className="text-white text-sm font-medium">
           {isVideoCall ? "Video Call" : "Audio Call"}
@@ -335,16 +354,16 @@ const VideoCallScreen = ({
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="fixed bottom-0 left-0 right-0 pb-8 pt-6 px-4 bg-gradient-to-t from-black/60 to-transparent"
+        className="fixed bottom-0 left-0 right-0 pb-10 pt-8 px-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
       >
-        <div className="flex items-center justify-center gap-4 max-w-sm mx-auto">
-          {/* Add Member Button - Mobile Friendly */}
+        <div className="flex items-center justify-center gap-5 max-w-sm mx-auto">
+          {/* Add Member Button */}
           <Button
             onClick={() => setShowAddMember(true)}
             size="lg"
-            className="rounded-full w-12 h-12 p-0 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
+            className="rounded-full w-14 h-14 p-0 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
           >
-            <UserPlus className="w-5 h-5 text-white" />
+            <UserPlus className="w-6 h-6 text-white" />
           </Button>
 
           {isVideoCall && onSwitchCamera && (
@@ -352,9 +371,9 @@ const VideoCallScreen = ({
               onClick={onSwitchCamera}
               size="lg"
               variant="secondary"
-              className="rounded-full w-12 h-12 p-0 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
+              className="rounded-full w-14 h-14 p-0 bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm"
             >
-              <SwitchCamera className="w-5 h-5 text-white" />
+              <SwitchCamera className="w-6 h-6 text-white" />
             </Button>
           )}
 
@@ -363,12 +382,12 @@ const VideoCallScreen = ({
               onClick={onToggleCamera}
               size="lg"
               variant={isCameraOn ? "secondary" : "destructive"}
-              className={`rounded-full w-12 h-12 p-0 ${isCameraOn ? 'bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm' : ''}`}
+              className={`rounded-full w-14 h-14 p-0 ${isCameraOn ? 'bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm' : ''}`}
             >
               {isCameraOn ? (
-                <Video className="w-5 h-5 text-white" />
+                <Video className="w-6 h-6 text-white" />
               ) : (
-                <VideoOff className="w-5 h-5" />
+                <VideoOff className="w-6 h-6" />
               )}
             </Button>
           )}
@@ -377,12 +396,12 @@ const VideoCallScreen = ({
             onClick={onToggleMic}
             size="lg"
             variant={isMicOn ? "secondary" : "destructive"}
-            className={`rounded-full w-12 h-12 p-0 ${isMicOn ? 'bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm' : ''}`}
+            className={`rounded-full w-14 h-14 p-0 ${isMicOn ? 'bg-white/20 hover:bg-white/30 border-0 backdrop-blur-sm' : ''}`}
           >
             {isMicOn ? (
-              <Mic className="w-5 h-5 text-white" />
+              <Mic className="w-6 h-6 text-white" />
             ) : (
-              <MicOff className="w-5 h-5" />
+              <MicOff className="w-6 h-6" />
             )}
           </Button>
 
@@ -390,9 +409,9 @@ const VideoCallScreen = ({
             onClick={onEndCall}
             size="lg"
             variant="destructive"
-            className="rounded-full w-14 h-14 p-0 shadow-lg shadow-destructive/30"
+            className="rounded-full w-16 h-16 p-0 shadow-lg shadow-destructive/40"
           >
-            <PhoneOff className="w-6 h-6" />
+            <PhoneOff className="w-7 h-7" />
           </Button>
         </div>
       </motion.div>

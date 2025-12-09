@@ -82,12 +82,16 @@ const Chat = () => {
   
   // AI Features State
   const { settings: aiSettings } = useAISettings();
-  const { checkToneGuard, getSoftenedMessage, getSmartReplies, detectReminder, loading: aiLoading } = useAIAssistant(aiSettings);
+  const { checkToneGuard, getSoftenedMessage, getSmartReplies, detectReminder, getAutoReply, loading: aiLoading } = useAIAssistant(aiSettings);
   const [toneGuardDialog, setToneGuardDialog] = useState<{ message: string; reason?: string; softenedMessage?: string } | null>(null);
   const [smartReplies, setSmartReplies] = useState<string[]>([]);
   const [reminderSuggestion, setReminderSuggestion] = useState<{ messageId: string; title: string; time?: string | null } | null>(null);
   const [loadingSmartReplies, setLoadingSmartReplies] = useState(false);
   
+  const [isUserTyping, setIsUserTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProcessedMessageRef = useRef<string | null>(null);
+
   const {
     startCall,
     startAudioCall,
@@ -100,6 +104,7 @@ const Chat = () => {
     isCameraOn,
     isMicOn,
     isVideoCall,
+    isFrontCamera,
     localStream,
     remoteStream,
     incomingCall,
@@ -264,6 +269,55 @@ const Chat = () => {
     }
   };
 
+  // Generate smart replies for incoming messages
+  const generateSmartRepliesForMessage = async (message: Message) => {
+    if (!aiSettings?.smart_replies_enabled) return;
+    if (message.sender_id === currentUserId) return;
+    if (message.message_type !== 'text') return;
+    if (lastProcessedMessageRef.current === message.id) return;
+    
+    lastProcessedMessageRef.current = message.id;
+    setLoadingSmartReplies(true);
+    
+    try {
+      const replies = await getSmartReplies(message.content);
+      if (replies && replies.length > 0) {
+        setSmartReplies(replies);
+      }
+    } catch (error) {
+      console.error("Smart replies error:", error);
+    } finally {
+      setLoadingSmartReplies(false);
+    }
+  };
+
+  // Auto-reply when user is not typing
+  const handleAutoReply = async (message: Message) => {
+    if (!aiSettings?.auto_reply_enabled) return;
+    if (message.sender_id === currentUserId) return;
+    if (message.message_type !== 'text') return;
+    if (isUserTyping) return;
+    
+    try {
+      const autoReplyText = await getAutoReply(message.content, messages.slice(-5).map(m => m.content));
+      if (autoReplyText && !isUserTyping) {
+        // Send auto-reply after a small delay
+        setTimeout(async () => {
+          if (!isUserTyping) {
+            await supabase.from("messages").insert({
+              conversation_id: conversationId,
+              sender_id: currentUserId,
+              content: `🤖 ${autoReplyText}`,
+              message_type: "text",
+            });
+          }
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Auto reply error:", error);
+    }
+  };
+
   const subscribeToMessages = () => {
     const messagesChannel = supabase
       .channel(`messages:${conversationId}`)
@@ -275,8 +329,15 @@ const Chat = () => {
           table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          setMessages((prev) => [...prev, { ...(payload.new as Message), reactions: [] }]);
+        async (payload) => {
+          const newMessage = { ...(payload.new as Message), reactions: [] };
+          setMessages((prev) => [...prev, newMessage]);
+          
+          // Generate smart replies for incoming messages
+          if (newMessage.sender_id !== currentUserId) {
+            generateSmartRepliesForMessage(newMessage);
+            handleAutoReply(newMessage);
+          }
         }
       )
       .subscribe();
@@ -397,6 +458,20 @@ const Chat = () => {
   const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNewMessage(value);
+
+    // Track typing state for auto-reply
+    setIsUserTyping(true);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsUserTyping(false);
+    }, 3000); // Stop typing after 3 seconds of inactivity
+
+    // Clear smart replies when user starts typing
+    if (value.length > 0) {
+      setSmartReplies([]);
+    }
 
     // Check for @ mention trigger in group chats
     if (isGroupChat && groupId) {
@@ -756,13 +831,14 @@ const Chat = () => {
           <VideoCallScreen
             localStream={localStream}
             remoteStream={remoteStream}
-        onEndCall={endCall}
-        onToggleCamera={toggleCamera}
-        onToggleMic={toggleMic}
-        onSwitchCamera={switchCamera}
+            onEndCall={endCall}
+            onToggleCamera={toggleCamera}
+            onToggleMic={toggleMic}
+            onSwitchCamera={switchCamera}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}
+            isFrontCamera={isFrontCamera}
           />
         )}
       </AnimatePresence>
