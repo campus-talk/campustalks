@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_settings: {
+        Row: {
+          ai_about_me: string | null
+          ai_model_preference: string | null
+          ai_personality_prompt: string | null
+          auto_reply_enabled: boolean | null
+          auto_reply_prompt: string | null
+          created_at: string | null
+          emotion_filter_enabled: boolean | null
+          emotion_filter_strictness: string | null
+          id: string
+          smart_reminders_enabled: boolean | null
+          smart_replies_enabled: boolean | null
+          suspicious_warnings_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ai_about_me?: string | null
+          ai_model_preference?: string | null
+          ai_personality_prompt?: string | null
+          auto_reply_enabled?: boolean | null
+          auto_reply_prompt?: string | null
+          created_at?: string | null
+          emotion_filter_enabled?: boolean | null
+          emotion_filter_strictness?: string | null
+          id?: string
+          smart_reminders_enabled?: boolean | null
+          smart_replies_enabled?: boolean | null
+          suspicious_warnings_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ai_about_me?: string | null
+          ai_model_preference?: string | null
+          ai_personality_prompt?: string | null
+          auto_reply_enabled?: boolean | null
+          auto_reply_prompt?: string | null
+          created_at?: string | null
+          emotion_filter_enabled?: boolean | null
+          emotion_filter_strictness?: string | null
+          id?: string
+          smart_reminders_enabled?: boolean | null
+          smart_replies_enabled?: boolean | null
+          suspicious_warnings_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           blocked_id: string
@@ -160,6 +211,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      flagged_messages: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          flag_type: string
+          id: string
+          message_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          flag_type: string
+          id?: string
+          message_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          flag_type?: string
+          id?: string
+          message_id?: string
+        }
+        Relationships: []
       }
       group_members: {
         Row: {
@@ -451,6 +526,39 @@ export type Database = {
           status?: string | null
           unique_key?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      reminders: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          is_completed: boolean | null
+          message_id: string | null
+          reminder_time: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          message_id?: string | null
+          reminder_time: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          message_id?: string | null
+          reminder_time?: string
+          title?: string
+          user_id?: string
         }
         Relationships: []
       }

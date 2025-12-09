@@ -17,6 +17,12 @@ import MentionPicker from "@/components/MentionPicker";
 import ForwardMessageDialog from "@/components/ForwardMessageDialog";
 import ScheduleMessageDialog from "@/components/ScheduleMessageDialog";
 import EncryptionBanner from "@/components/EncryptionBanner";
+import ToneGuardDialog from "@/components/ToneGuardDialog";
+import SmartReplies from "@/components/SmartReplies";
+import SuspiciousMessageWarning from "@/components/SuspiciousMessageWarning";
+import ReminderSuggestion from "@/components/ReminderSuggestion";
+import { useAISettings } from "@/hooks/useAISettings";
+import { useAIAssistant } from "@/hooks/useAIAssistant";
 
 interface Reaction {
   id: string;
@@ -73,6 +79,14 @@ const Chat = () => {
   const [forwardDialog, setForwardDialog] = useState<{ messageId: string; content: string; type: string } | null>(null);
   const [scheduleDialog, setScheduleDialog] = useState(false);
   const [scheduledMessage, setScheduledMessage] = useState("");
+  
+  // AI Features State
+  const { settings: aiSettings } = useAISettings();
+  const { checkToneGuard, getSoftenedMessage, getSmartReplies, detectReminder, loading: aiLoading } = useAIAssistant(aiSettings);
+  const [toneGuardDialog, setToneGuardDialog] = useState<{ message: string; reason?: string; softenedMessage?: string } | null>(null);
+  const [smartReplies, setSmartReplies] = useState<string[]>([]);
+  const [reminderSuggestion, setReminderSuggestion] = useState<{ messageId: string; title: string; time?: string | null } | null>(null);
+  const [loadingSmartReplies, setLoadingSmartReplies] = useState(false);
   
   const {
     startCall,
@@ -289,16 +303,31 @@ const Chat = () => {
     };
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent, forceMessage?: string) => {
     e.preventDefault();
-    if (!newMessage.trim() || sending) return;
+    const messageToSend = forceMessage || newMessage.trim();
+    if (!messageToSend || sending) return;
+
+    // Check tone guard if enabled and no force message
+    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
+      const toneResult = await checkToneGuard(messageToSend);
+      if (toneResult?.shouldWarn) {
+        const softened = await getSoftenedMessage(messageToSend);
+        setToneGuardDialog({
+          message: messageToSend,
+          reason: toneResult.reason,
+          softenedMessage: softened || undefined,
+        });
+        return;
+      }
+    }
 
     setSending(true);
     try {
       const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
-        content: newMessage.trim(),
+        content: messageToSend,
         message_type: "text",
         reply_to: replyingTo?.id || null,
       }).select().single();
@@ -667,6 +696,34 @@ const Chat = () => {
         onForward={handleForwardToConversations}
       />
 
+      {/* Tone Guard Dialog */}
+      <ToneGuardDialog
+        open={!!toneGuardDialog}
+        onOpenChange={() => setToneGuardDialog(null)}
+        originalMessage={toneGuardDialog?.message || ""}
+        reason={toneGuardDialog?.reason}
+        softenedMessage={toneGuardDialog?.softenedMessage}
+        onSendAnyway={() => {
+          if (toneGuardDialog) {
+            handleSendMessage({ preventDefault: () => {} } as React.FormEvent, toneGuardDialog.message);
+            setToneGuardDialog(null);
+          }
+        }}
+        onSendSoftened={() => {
+          if (toneGuardDialog?.softenedMessage) {
+            handleSendMessage({ preventDefault: () => {} } as React.FormEvent, toneGuardDialog.softenedMessage);
+            setToneGuardDialog(null);
+          }
+        }}
+        onEdit={() => {
+          if (toneGuardDialog) {
+            setNewMessage(toneGuardDialog.message);
+            setToneGuardDialog(null);
+          }
+        }}
+        loading={aiLoading}
+      />
+
       {/* Schedule Message Dialog */}
       <ScheduleMessageDialog
         isOpen={scheduleDialog}
@@ -969,7 +1026,19 @@ const Chat = () => {
         </div>
 
         {/* Input */}
-        <div className="glass-effect border-t border-border p-3 flex-shrink-0 relative">
+        <div className="glass-effect border-t border-border flex-shrink-0 relative">
+          {/* Smart Replies */}
+          {smartReplies.length > 0 && (
+            <SmartReplies
+              replies={smartReplies}
+              onSelect={(reply) => {
+                setNewMessage(reply);
+                setSmartReplies([]);
+              }}
+              loading={loadingSmartReplies}
+            />
+          )}
+          
           {/* Mention Picker */}
           {isGroupChat && groupId && (
             <MentionPicker
@@ -981,7 +1050,7 @@ const Chat = () => {
             />
           )}
           
-          <form onSubmit={handleSendMessage} className="flex gap-2">
+          <form onSubmit={handleSendMessage} className="flex gap-2 p-3">
             <input
               type="file"
               id="image-upload"
