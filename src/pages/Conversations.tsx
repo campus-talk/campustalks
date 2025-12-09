@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search, Users } from "lucide-react";
+import { Search, Users, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateGroupDialog from "@/components/CreateGroupDialog";
@@ -43,11 +43,26 @@ const Conversations = () => {
   const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const [totalUnread, setTotalUnread] = useState(0);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     fetchConversations();
     subscribeToMessages();
+    loadNotificationCount();
   }, []);
+
+  const loadNotificationCount = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { count } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    setUnreadNotifications(count || 0);
+  };
 
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -239,14 +254,14 @@ const Conversations = () => {
   return (
     <div className="min-h-screen geometric-pattern pb-safe-nav">
       {/* Header */}
-      <header className="gradient-soft text-white p-6 shadow-lg">
+      <header className="gradient-primary text-white p-5 shadow-lg premium-shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">Chats</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-white/20 rounded-full"
+              className="text-white hover:bg-white/20 rounded-full w-10 h-10"
               onClick={() => setCreateGroupOpen(true)}
             >
               <Users className="w-5 h-5" />
@@ -254,10 +269,23 @@ const Conversations = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-white/20 rounded-full"
+              className="text-white hover:bg-white/20 rounded-full w-10 h-10"
               onClick={() => navigate("/search")}
             >
               <Search className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20 rounded-full w-10 h-10 relative"
+              onClick={() => navigate("/notifications")}
+            >
+              <Bell className="w-5 h-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 flex items-center justify-center bg-accent text-white text-[10px] font-bold rounded-full px-1">
+                  {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                </span>
+              )}
             </Button>
           </div>
         </div>

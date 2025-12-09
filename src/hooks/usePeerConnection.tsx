@@ -433,6 +433,7 @@ export const usePeerConnection = (currentUserId: string) => {
     isCameraOn,
     isMicOn,
     isVideoCall,
+    isFrontCamera: facingMode === "user",
     localStream,
     remoteStream,
     incomingCall,

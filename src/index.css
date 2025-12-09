@@ -2,91 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Premium Design System - Modern & Elegant */
 
 @layer base {
   :root {
-    /* Soft, friendly color palette - Modern and attractive */
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    /* Premium Dark Blue & Gold Color Palette */
+    --background: 220 20% 97%;
+    --foreground: 224 71% 4%;
 
-    /* Beautiful gradient colors - Soft teal to coral */
-    --gradient-start: 172 66% 50%; /* Teal */
-    --gradient-mid: 340 82% 65%; /* Coral Pink */
-    --gradient-end: 262 83% 65%; /* Soft Purple */
+    /* Premium Gradient Colors - Deep Blue to Vibrant Purple */
+    --gradient-start: 234 89% 54%; /* Royal Blue */
+    --gradient-mid: 271 91% 65%; /* Vibrant Purple */
+    --gradient-end: 318 66% 56%; /* Magenta Pink */
     
-    /* Primary - Soft Teal */
-    --primary: 172 66% 50%;
+    /* Primary - Royal Indigo */
+    --primary: 234 89% 54%;
     --primary-foreground: 0 0% 100%;
     
-    /* Secondary - Soft Lavender */
-    --secondary: 262 40% 94%;
-    --secondary-foreground: 262 60% 35%;
+    /* Secondary - Soft Slate */
+    --secondary: 220 14% 95%;
+    --secondary-foreground: 224 71% 20%;
 
-    /* Accent - Warm Coral */
-    --accent: 340 82% 65%;
+    /* Accent - Vibrant Gold/Amber */
+    --accent: 38 92% 50%;
     --accent-foreground: 0 0% 100%;
 
     /* Muted backgrounds */
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 9% 46%;
 
-    /* Card styling with soft effect */
+    /* Card styling - Glassmorphic */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 224 71% 4%;
 
     /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 224 71% 4%;
 
     /* Borders and inputs */
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 172 66% 50%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 234 89% 54%;
 
-    /* Success - For read receipts */
-    --success: 172 66% 50%;
+    /* Success - Emerald */
+    --success: 152 69% 43%;
     
     /* Destructive */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --radius: 1rem;
+    --radius: 0.875rem;
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 0 0% 98%;
+    --background: 224 71% 4%;
+    --foreground: 220 20% 97%;
 
-    --gradient-start: 172 66% 55%;
-    --gradient-mid: 340 75% 60%;
-    --gradient-end: 262 70% 60%;
+    --gradient-start: 234 89% 60%;
+    --gradient-mid: 271 91% 65%;
+    --gradient-end: 318 66% 60%;
     
-    --primary: 172 66% 55%;
+    --primary: 234 89% 60%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 222 30% 18%;
-    --secondary-foreground: 172 50% 80%;
+    --secondary: 224 50% 12%;
+    --secondary-foreground: 234 50% 80%;
 
-    --accent: 340 75% 60%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 38 92% 55%;
+    --accent-foreground: 0 0% 0%;
 
-    --muted: 220 13% 15%;
-    --muted-foreground: 220 9% 65%;
+    --muted: 224 50% 12%;
+    --muted-foreground: 220 9% 60%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 0 0% 98%;
+    --card: 224 50% 8%;
+    --card-foreground: 220 20% 97%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 224 50% 8%;
+    --popover-foreground: 220 20% 97%;
 
-    --border: 220 13% 20%;
-    --input: 220 13% 20%;
-    --ring: 172 66% 55%;
+    --border: 224 30% 18%;
+    --input: 224 30% 18%;
+    --ring: 234 89% 60%;
 
-    --success: 172 66% 50%;
+    --success: 152 69% 43%;
     
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -99,12 +97,12 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   }
 }
 
-/* Custom gradient utilities */
+/* Premium gradient utilities */
 @layer utilities {
   .gradient-primary {
     background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-mid)) 50%, hsl(var(--gradient-end)) 100%);
@@ -115,33 +113,54 @@ All colors MUST be HSL.
   }
 
   .gradient-soft {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--gradient-mid)) 100%);
+  }
+
+  .gradient-gold {
+    background: linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(45 93% 47%) 100%);
   }
 
   .glass-effect {
-    background: hsl(var(--card) / 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--border) / 0.3);
+    background: hsl(var(--card) / 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 8px 32px hsl(var(--primary) / 0.08);
+  }
+
+  .glass-dark {
+    background: hsl(224 71% 4% / 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
 
   .chat-bubble-sent {
-    background: linear-gradient(135deg, hsl(172 66% 50%) 0%, hsl(172 66% 45%) 100%);
-    box-shadow: 0 2px 8px hsl(172 66% 50% / 0.25);
+    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-mid)) 100%);
+    box-shadow: 0 4px 16px hsl(var(--primary) / 0.25);
   }
 
   .chat-bubble-received {
     background: hsl(var(--card));
-    box-shadow: 0 2px 8px hsl(222 47% 11% / 0.06);
+    box-shadow: 0 2px 12px hsl(0 0% 0% / 0.05);
+    border: 1px solid hsl(var(--border) / 0.5);
   }
 
   .geometric-pattern {
     background-color: hsl(var(--background));
     background-image: 
-      radial-gradient(circle at 20% 30%, hsl(var(--gradient-start) / 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 80% 70%, hsl(var(--gradient-end) / 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.03) 1px, transparent 0);
-    background-size: 100% 100%, 100% 100%, 40px 40px;
+      radial-gradient(circle at 10% 20%, hsl(var(--gradient-start) / 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 90% 80%, hsl(var(--gradient-end) / 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, hsl(var(--gradient-mid) / 0.02) 0%, transparent 60%);
+  }
+
+  .premium-shadow {
+    box-shadow: 0 4px 24px -4px hsl(var(--primary) / 0.15),
+                0 8px 40px -8px hsl(var(--gradient-mid) / 0.12);
+  }
+
+  .premium-shadow-lg {
+    box-shadow: 0 8px 40px -8px hsl(var(--primary) / 0.2),
+                0 16px 64px -16px hsl(var(--gradient-mid) / 0.15);
   }
 
   /* Safe area padding for notched devices */
@@ -150,18 +169,18 @@ All colors MUST be HSL.
   }
 
   .pb-safe-nav {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Smooth animations */
   .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @keyframes fadeIn {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(12px);
     }
     to {
       opacity: 1;
@@ -170,17 +189,41 @@ All colors MUST be HSL.
   }
 
   .animate-scale-in {
-    animation: scaleIn 0.2s ease-out;
+    animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @keyframes scaleIn {
     from {
       opacity: 0;
-      transform: scale(0.95);
+      transform: scale(0.92);
     }
     to {
       opacity: 1;
       transform: scale(1);
     }
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Video mirror for selfie camera */
+  .video-mirror {
+    transform: scaleX(-1);
+  }
+
+  .video-normal {
+    transform: scaleX(1);
   }
 }
