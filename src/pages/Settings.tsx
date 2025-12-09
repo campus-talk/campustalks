@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight, Phone } from "lucide-react";
+import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight, Phone, Bot } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -254,6 +254,25 @@ const Settings = () => {
               <Save className="w-5 h-5 mr-2" />
               {loading ? "Saving..." : "Save Changes"}
             </Button>
+
+            {/* AI Assistant Section */}
+            <button
+              onClick={() => navigate("/settings/ai")}
+              className="w-full flex items-center justify-between p-4 rounded-xl bg-background/50 hover:bg-background/80 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-purple-500/10">
+                  <Bot className="w-5 h-5 text-purple-500" />
+                </div>
+                <div className="text-left">
+                  <span className="font-medium block">AI Assistant</span>
+                  <span className="text-sm text-muted-foreground">
+                    Smart replies, auto-reply & more
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
 
             {/* Phone Number Section */}
             <button

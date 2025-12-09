@@ -18,6 +18,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Groups = lazy(() => import("./pages/Groups"));
 const Calls = lazy(() => import("./pages/Calls"));
+const AISettings = lazy(() => import("./pages/AISettings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => {
               <Route path="/profile/:userId" element={<Profile />} />
               <Route path="/chat/:conversationId" element={<Chat />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/ai" element={<AISettings />} />
               <Route path="/groups" element={<Groups />} />
               <Route path="/calls" element={<Calls />} />
               <Route path="/notifications" element={<Notifications />} />
