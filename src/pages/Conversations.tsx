@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +36,7 @@ interface Conversation {
 
 const Conversations = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,11 +46,12 @@ const Conversations = () => {
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
+  // Refetch when returning to this page
   useEffect(() => {
     fetchConversations();
     subscribeToMessages();
     loadNotificationCount();
-  }, []);
+  }, [location.key]);
 
   const loadNotificationCount = async () => {
     const { data: { user } } = await supabase.auth.getUser();

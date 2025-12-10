@@ -12,6 +12,7 @@ const ONESIGNAL_APP_ID = "a8671653-d9f5-4c42-8feb-e9ed8ad2892e";
 
 export const useOneSignal = () => {
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
     const initOneSignal = async () => {
@@ -34,6 +35,8 @@ export const useOneSignal = () => {
           await OneSignal.init({
             appId: ONESIGNAL_APP_ID,
             allowLocalhostAsSecureOrigin: true,
+            serviceWorkerParam: { scope: "/" },
+            serviceWorkerPath: "/OneSignalSDKWorker.js",
             notifyButton: {
               enable: false,
             },
@@ -50,7 +53,7 @@ export const useOneSignal = () => {
                     },
                     delay: {
                       pageViews: 1,
-                      timeDelay: 3,
+                      timeDelay: 2,
                     },
                   },
                 ],
@@ -58,9 +61,22 @@ export const useOneSignal = () => {
             },
           });
 
-          // Login user with Supabase user ID
+          // Login user with Supabase user ID as external user id
           await OneSignal.login(user.id);
           console.log("OneSignal initialized and user logged in:", user.id);
+          
+          // Check subscription status
+          const isPushSupported = OneSignal.Notifications.isPushSupported();
+          if (isPushSupported) {
+            const permission = await OneSignal.Notifications.permission;
+            setIsSubscribed(permission);
+            
+            // Request permission if not granted
+            if (!permission) {
+              await OneSignal.Notifications.requestPermission();
+            }
+          }
+          
           setIsInitialized(true);
         } catch (error) {
           console.error("OneSignal initialization error:", error);
@@ -74,6 +90,7 @@ export const useOneSignal = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" && window.OneSignal) {
         window.OneSignal.logout();
+        setIsSubscribed(false);
       } else if (event === "SIGNED_IN" && session?.user && window.OneSignal) {
         window.OneSignal.login(session.user.id);
       }
@@ -84,5 +101,5 @@ export const useOneSignal = () => {
     };
   }, []);
 
-  return { isInitialized };
+  return { isInitialized, isSubscribed };
 };
