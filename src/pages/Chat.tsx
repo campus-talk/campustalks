@@ -395,24 +395,40 @@ const Chat = () => {
 
       if (error) throw error;
 
+      // Get sender profile for notification
+      const { data: senderProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .single();
+
       // Create notification for the receiver
       if (!isGroupChat && otherUser) {
-        // Get sender profile for notification
-        const { data: senderProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", currentUserId)
-          .single();
-
         await supabase.from("notifications").insert({
           user_id: otherUser.id,
           type: "message",
           title: senderProfile?.full_name || "New message",
-          body: newMessage.trim().substring(0, 100),
+          body: messageToSend.substring(0, 100),
           sender_id: currentUserId,
           conversation_id: conversationId,
           message_id: messageData?.id,
         });
+
+        // Send push notification via OneSignal
+        try {
+          await supabase.functions.invoke("send-push-notification", {
+            body: {
+              type: "message",
+              recipientIds: [otherUser.id],
+              senderId: currentUserId,
+              senderName: senderProfile?.full_name || "Someone",
+              content: messageToSend.substring(0, 100),
+              conversationId: conversationId,
+            },
+          });
+        } catch (pushError) {
+          console.log("Push notification failed (non-critical):", pushError);
+        }
       } else if (isGroupChat && groupId) {
         // For group chat, notify all members except sender
         const { data: members } = await supabase
@@ -421,24 +437,35 @@ const Chat = () => {
           .eq("group_id", groupId)
           .neq("user_id", currentUserId);
 
-        const { data: senderProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", currentUserId)
-          .single();
-
-        if (members) {
+        if (members && members.length > 0) {
           const notifications = members.map(m => ({
             user_id: m.user_id,
             type: "message",
             title: `${senderProfile?.full_name} in ${otherUser?.full_name}`,
-            body: newMessage.trim().substring(0, 100),
+            body: messageToSend.substring(0, 100),
             sender_id: currentUserId,
             conversation_id: conversationId,
             message_id: messageData?.id,
           }));
 
           await supabase.from("notifications").insert(notifications);
+
+          // Send push notification to group members via OneSignal
+          try {
+            await supabase.functions.invoke("send-push-notification", {
+              body: {
+                type: "group_message",
+                recipientIds: members.map(m => m.user_id),
+                senderId: currentUserId,
+                senderName: senderProfile?.full_name || "Someone",
+                content: messageToSend.substring(0, 100),
+                conversationId: conversationId,
+                groupName: otherUser?.full_name,
+              },
+            });
+          } catch (pushError) {
+            console.log("Push notification failed (non-critical):", pushError);
+          }
         }
       }
 

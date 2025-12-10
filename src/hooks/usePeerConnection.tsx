@@ -145,6 +145,9 @@ export const usePeerConnection = (currentUserId: string) => {
       // If this is a group call, notify all group members
       if (isGroup && conversationId) {
         await notifyGroupMembers(conversationId, videoEnabled);
+      } else {
+        // Send push notification for 1-on-1 call
+        await sendCallPushNotification(remoteUserId, videoEnabled);
       }
 
       // Call the remote peer with metadata about call type
@@ -228,7 +231,7 @@ export const usePeerConnection = (currentUserId: string) => {
         .eq("id", convData.group_id)
         .single();
 
-      // Create notifications for all members
+      // Create in-app notifications for all members
       const notifications = members.map(m => ({
         user_id: m.user_id,
         type: isVideo ? "incoming_call" : "call",
@@ -239,8 +242,48 @@ export const usePeerConnection = (currentUserId: string) => {
       }));
 
       await supabase.from("notifications").insert(notifications);
+
+      // Send push notification to group members via OneSignal
+      try {
+        await supabase.functions.invoke("send-push-notification", {
+          body: {
+            type: "group_call",
+            recipientIds: members.map(m => m.user_id),
+            senderId: currentUserId,
+            senderName: callerProfile?.full_name || "Someone",
+            callType: isVideo ? "video" : "audio",
+            conversationId: conversationId,
+            groupName: groupInfo?.name,
+          },
+        });
+      } catch (pushError) {
+        console.log("Push notification failed (non-critical):", pushError);
+      }
     } catch (e) {
       console.error("Error notifying group members:", e);
+    }
+  };
+
+  // Send push notification for 1-on-1 calls
+  const sendCallPushNotification = async (receiverId: string, isVideo: boolean) => {
+    try {
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .single();
+
+      await supabase.functions.invoke("send-push-notification", {
+        body: {
+          type: "call",
+          recipientIds: [receiverId],
+          senderId: currentUserId,
+          senderName: callerProfile?.full_name || "Someone",
+          callType: isVideo ? "video" : "audio",
+        },
+      });
+    } catch (pushError) {
+      console.log("Push notification failed (non-critical):", pushError);
     }
   };
 
