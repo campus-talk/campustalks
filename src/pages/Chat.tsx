@@ -129,25 +129,18 @@ const Chat = () => {
   const markMessagesAsRead = async () => {
     if (!currentUserId || !conversationId) return;
     
-    // Get unread messages not sent by current user
-    const unreadMessages = messages.filter(
-      m => !m.is_read && m.sender_id !== currentUserId
-    );
-    
-    if (unreadMessages.length === 0) return;
-    
-    const unreadIds = unreadMessages.map(m => m.id);
-    
-    // Update messages as read
+    // Mark ALL unread messages in this conversation as read immediately
     const { error } = await supabase
       .from("messages")
       .update({ is_read: true })
-      .in("id", unreadIds);
+      .eq("conversation_id", conversationId)
+      .neq("sender_id", currentUserId)
+      .eq("is_read", false);
     
     if (!error) {
       // Update local state immediately
       setMessages(prev => prev.map(m => 
-        unreadIds.includes(m.id) ? { ...m, is_read: true } : m
+        m.sender_id !== currentUserId ? { ...m, is_read: true } : m
       ));
     }
   };

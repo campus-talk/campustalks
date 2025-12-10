@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +7,7 @@ const corsHeaders = {
 
 interface PushNotificationRequest {
   type: "message" | "group_message" | "call" | "group_call";
-  recipientIds: string[]; // User IDs to send notification to
+  recipientIds: string[];
   senderId: string;
   senderName: string;
   content?: string;
@@ -18,7 +17,6 @@ interface PushNotificationRequest {
 }
 
 serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -41,25 +39,21 @@ serve(async (req: Request): Promise<Response> => {
     const { type, recipientIds, senderId, senderName, content, callType, groupName } = request;
 
     if (!recipientIds || recipientIds.length === 0) {
-      console.log("No recipients specified");
       return new Response(
         JSON.stringify({ success: false, message: "No recipients" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Filter out sender from recipients (don't notify yourself)
     const filteredRecipients = recipientIds.filter(id => id !== senderId);
     
     if (filteredRecipients.length === 0) {
-      console.log("No recipients after filtering sender");
       return new Response(
         JSON.stringify({ success: true, message: "No external recipients" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Build notification content based on type
     let notificationContent: { en: string; hi: string };
     let headings: { en: string; hi: string };
 
@@ -113,17 +107,15 @@ serve(async (req: Request): Promise<Response> => {
         notificationContent = { en: "You have a new notification", hi: "आपके पास एक नई सूचना है" };
     }
 
-    // OneSignal API request
+    // OneSignal API request - removed android_channel_id to fix error
     const oneSignalPayload = {
       app_id: ONESIGNAL_APP_ID,
       headings: headings,
       contents: notificationContent,
       include_external_user_ids: filteredRecipients,
       channel_for_external_user_ids: "push",
-      // Additional settings for better delivery
       priority: 10,
-      ttl: 86400, // 24 hours
-      android_channel_id: "campus_talks_notifications",
+      ttl: 86400,
       ios_sound: "default",
       android_sound: "default"
     };
