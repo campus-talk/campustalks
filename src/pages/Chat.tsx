@@ -21,8 +21,10 @@ import ToneGuardDialog from "@/components/ToneGuardDialog";
 import SmartReplies from "@/components/SmartReplies";
 import SuspiciousMessageWarning from "@/components/SuspiciousMessageWarning";
 import ReminderSuggestion from "@/components/ReminderSuggestion";
+import DateSeparator from "@/components/DateSeparator";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
+import { format, isSameDay } from "date-fns";
 
 interface Reaction {
   id: string;
@@ -560,11 +562,13 @@ const Chat = () => {
   const handleDeleteForMe = async () => {
     if (!deleteDialog) return;
     try {
-      // In a real app, mark as deleted for this user only
       await supabase
         .from("messages")
         .delete()
         .eq("id", deleteDialog.messageId);
+      
+      // Remove from local state immediately
+      setMessages(prev => prev.filter(m => m.id !== deleteDialog.messageId));
       
       toast({
         title: "Deleted",
@@ -585,8 +589,11 @@ const Chat = () => {
     try {
       await supabase
         .from("messages")
-        .update({ deleted_for_everyone: true, content: "This message was deleted" })
+        .delete()
         .eq("id", deleteDialog.messageId);
+      
+      // Remove from local state immediately
+      setMessages(prev => prev.filter(m => m.id !== deleteDialog.messageId));
       
       toast({
         title: "Deleted",
@@ -903,12 +910,6 @@ const Chat = () => {
           </div>
         </header>
 
-        {/* E2E Encryption Banner */}
-        <EncryptionBanner
-          isGroup={isGroupChat}
-          groupName={isGroupChat ? otherUser?.full_name : undefined}
-          userName={!isGroupChat ? otherUser?.full_name : undefined}
-        />
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
@@ -931,6 +932,13 @@ const Chat = () => {
             </div>
           )}
 
+          {/* Encryption Banner - WhatsApp style inline */}
+          <EncryptionBanner
+            isGroup={isGroupChat}
+            groupName={isGroupChat ? otherUser?.full_name : undefined}
+            userName={!isGroupChat ? otherUser?.full_name : undefined}
+          />
+          
           {/* Merge messages and call logs by timestamp */}
           {(() => {
             // Combine messages and call logs into a single sorted array
@@ -939,7 +947,13 @@ const Chat = () => {
               ...callLogs.map(c => ({ type: 'call' as const, data: c, timestamp: c.created_at }))
             ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-            return allItems.map((item) => {
+            let lastDate: string | null = null;
+            
+            return allItems.map((item, index) => {
+              const itemDate = format(new Date(item.timestamp), 'yyyy-MM-dd');
+              const showDateSeparator = lastDate !== itemDate;
+              if (showDateSeparator) lastDate = itemDate;
+              
               // Render Call Log
               if (item.type === 'call') {
                 const call = item.data as CallLog;
@@ -955,166 +969,170 @@ const Chat = () => {
                 };
 
                 return (
-                  <motion.div
-                    key={`call-${call.id}`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${isCaller ? "justify-end" : "justify-start"} mb-4`}
-                  >
-                    <div
-                      onClick={() => {
-                        if (otherUser) {
-                          isVideo ? startCall(otherUser.id, true, conversationId, isGroupChat) : startAudioCall(otherUser.id, conversationId, isGroupChat);
-                        }
-                      }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] ${
-                        isCaller
-                          ? "bg-primary/10 rounded-br-sm"
-                          : "bg-muted rounded-bl-sm"
-                      }`}
+                  <div key={`call-${call.id}`}>
+                    {showDateSeparator && <DateSeparator date={new Date(item.timestamp)} />}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${isCaller ? "justify-end" : "justify-start"} mb-4`}
                     >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isMissed ? 'bg-destructive/20' : 'bg-green-500/20'
-                      }`}>
-                        {isMissed ? (
-                          <PhoneMissed className={`w-5 h-5 ${isMissed ? 'text-destructive' : 'text-green-500'}`} />
-                        ) : isCaller ? (
-                          <PhoneOutgoing className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <PhoneIncoming className="w-5 h-5 text-green-500" />
-                        )}
+                      <div
+                        onClick={() => {
+                          if (otherUser) {
+                            isVideo ? startCall(otherUser.id, true, conversationId, isGroupChat) : startAudioCall(otherUser.id, conversationId, isGroupChat);
+                          }
+                        }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] ${
+                          isCaller
+                            ? "bg-primary/10 rounded-br-sm"
+                            : "bg-muted rounded-bl-sm"
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          isMissed ? 'bg-destructive/20' : 'bg-green-500/20'
+                        }`}>
+                          {isMissed ? (
+                            <PhoneMissed className={`w-5 h-5 ${isMissed ? 'text-destructive' : 'text-green-500'}`} />
+                          ) : isCaller ? (
+                            <PhoneOutgoing className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <PhoneIncoming className="w-5 h-5 text-green-500" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">
+                            {isMissed 
+                              ? `Missed ${isVideo ? 'video' : 'voice'} call` 
+                              : `${isVideo ? 'Video' : 'Voice'} call`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {isMissed ? 'Tap to call back' : formatDuration(call.duration_seconds) || 'Tap to call back'}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {new Date(call.created_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">
-                          {isMissed 
-                            ? `Missed ${isVideo ? 'video' : 'voice'} call` 
-                            : `${isVideo ? 'Video' : 'Voice'} call`}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {isMissed ? 'Tap to call back' : formatDuration(call.duration_seconds) || 'Tap to call back'}
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {new Date(call.created_at).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  </div>
                 );
               }
 
               // Render Message
               const message = item.data as Message;
-          const isSent = message.sender_id === currentUserId;
-          const isImage = message.message_type === "image";
+              const isSent = message.sender_id === currentUserId;
+              const isImage = message.message_type === "image";
 
-          // Group reactions by emoji with count
-          const reactionGroups = message.reactions?.reduce((acc, reaction) => {
-            if (!acc[reaction.emoji]) {
-              acc[reaction.emoji] = {
-                count: 0,
-                userIds: [],
-              };
-            }
-            acc[reaction.emoji].count++;
-            acc[reaction.emoji].userIds.push(reaction.user_id);
-            return acc;
-          }, {} as Record<string, { count: number; userIds: string[] }>);
+              // Group reactions by emoji with count
+              const reactionGroups = message.reactions?.reduce((acc, reaction) => {
+                if (!acc[reaction.emoji]) {
+                  acc[reaction.emoji] = {
+                    count: 0,
+                    userIds: [],
+                  };
+                }
+                acc[reaction.emoji].count++;
+                acc[reaction.emoji].userIds.push(reaction.user_id);
+                return acc;
+              }, {} as Record<string, { count: number; userIds: string[] }>);
 
-          return (
-            <motion.div
-              key={message.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex ${isSent ? "justify-end" : "justify-start"} mb-4 group`}
-              onContextMenu={(e) => handleLongPress(e, message)}
-              onTouchStart={(e) => {
-                const timer = setTimeout(() => handleLongPress(e, message), 500);
-                const handler = () => clearTimeout(timer);
-                e.currentTarget.addEventListener('touchend', handler, { once: true });
-              }}
-            >
-              <div className={`max-w-[70%] ${isSent ? "" : "flex items-start gap-2"}`}>
-                {!isSent && (
-                  <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarImage src={otherUser?.avatar_url || ""} />
-                    <AvatarFallback className="bg-gradient-primary text-white text-sm">
-                      {otherUser?.full_name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-
-                <div className="relative">
-                  <div
-                    className={`rounded-2xl px-4 py-3 ${
-                      isSent
-                        ? "chat-bubble-sent text-white rounded-br-sm"
-                        : "chat-bubble-received text-foreground rounded-bl-sm"
-                    }`}
+              return (
+                <div key={message.id}>
+                  {showDateSeparator && <DateSeparator date={new Date(item.timestamp)} />}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isSent ? "justify-end" : "justify-start"} mb-4 group`}
+                    onContextMenu={(e) => handleLongPress(e, message)}
+                    onTouchStart={(e) => {
+                      const timer = setTimeout(() => handleLongPress(e, message), 500);
+                      const handler = () => clearTimeout(timer);
+                      e.currentTarget.addEventListener('touchend', handler, { once: true });
+                    }}
                   >
-                    {message.deleted_for_everyone ? (
-                      <p className="italic text-muted-foreground">This message was deleted</p>
-                    ) : isImage ? (
-                      <img
-                        src={message.content}
-                        alt="Shared image"
-                        className="rounded-lg max-w-full"
-                      />
-                    ) : (
-                      <p className="break-words">{message.content}</p>
-                    )}
-                    <div className={`flex items-center gap-1 mt-1 text-xs ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
-                      {starredMessages.includes(message.id) && (
-                        <Star className="w-3 h-3 fill-current text-yellow-400" />
+                    <div className={`max-w-[70%] ${isSent ? "" : "flex items-start gap-2"}`}>
+                      {!isSent && (
+                        <Avatar className="w-8 h-8 flex-shrink-0">
+                          <AvatarImage src={otherUser?.avatar_url || ""} />
+                          <AvatarFallback className="bg-gradient-primary text-white text-sm">
+                            {otherUser?.full_name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
                       )}
-                      <span>
-                        {new Date(message.created_at).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                      {isSent && (
-                        message.is_read ? (
-                          <CheckCheck className="w-4 h-4 text-blue-300" />
-                        ) : (
-                          <Check className="w-4 h-4" />
-                        )
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Reactions Display */}
-                  {reactionGroups && Object.keys(reactionGroups).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {Object.entries(reactionGroups).map(([emoji, data]) => {
-                        const userReacted = data.userIds.includes(currentUserId);
-                        return (
-                          <button
-                            key={emoji}
-                            onClick={() => handleReaction(message.id, emoji)}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-sm transition-all ${
-                              userReacted
-                                ? "bg-primary/20 border border-primary"
-                                : "bg-background/80 border border-border hover:bg-primary/10"
-                            }`}
-                          >
-                            <span>{emoji}</span>
-                            <span className="text-xs">{data.count}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                      <div className="relative">
+                        <div
+                          className={`rounded-2xl px-4 py-3 ${
+                            isSent
+                              ? "chat-bubble-sent text-white rounded-br-sm"
+                              : "chat-bubble-received text-foreground rounded-bl-sm"
+                          }`}
+                        >
+                          {message.deleted_for_everyone ? (
+                            <p className="italic text-muted-foreground">This message was deleted</p>
+                          ) : isImage ? (
+                            <img
+                              src={message.content}
+                              alt="Shared image"
+                              className="rounded-lg max-w-full"
+                            />
+                          ) : (
+                            <p className="break-words">{message.content}</p>
+                          )}
+                          <div className={`flex items-center gap-1 mt-1 text-xs ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
+                            {starredMessages.includes(message.id) && (
+                              <Star className="w-3 h-3 fill-current text-yellow-400" />
+                            )}
+                            <span>
+                              {new Date(message.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {isSent && (
+                              message.is_read ? (
+                                <CheckCheck className="w-4 h-4 text-blue-300" />
+                              ) : (
+                                <Check className="w-4 h-4" />
+                              )
+                            )}
+                          </div>
+                        </div>
 
-                  {/* Emoji Picker - Shows on hover */}
-                  <div className={`absolute top-0 ${isSent ? "left-0 -translate-x-full -ml-2" : "right-0 translate-x-full mr-2"}`}>
-                    <EmojiPicker onEmojiSelect={(emoji) => handleReaction(message.id, emoji)} />
-                  </div>
+                        {/* Reactions Display */}
+                        {reactionGroups && Object.keys(reactionGroups).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {Object.entries(reactionGroups).map(([emoji, data]) => {
+                              const userReacted = data.userIds.includes(currentUserId);
+                              return (
+                                <button
+                                  key={emoji}
+                                  onClick={() => handleReaction(message.id, emoji)}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-sm transition-all ${
+                                    userReacted
+                                      ? "bg-primary/20 border border-primary"
+                                      : "bg-background/80 border border-border hover:bg-primary/10"
+                                  }`}
+                                >
+                                  <span>{emoji}</span>
+                                  <span className="text-xs">{data.count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Emoji Picker - Shows on hover */}
+                        <div className={`absolute top-0 ${isSent ? "left-0 -translate-x-full -ml-2" : "right-0 translate-x-full mr-2"}`}>
+                          <EmojiPicker onEmojiSelect={(emoji) => handleReaction(message.id, emoji)} />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
                 </div>
-              </div>
-            </motion.div>
               );
             });
           })()}
