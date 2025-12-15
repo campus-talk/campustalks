@@ -53,26 +53,57 @@ const CreateStatusDialog = ({
     const isVideo = file.type.startsWith("video/");
     
     if (isVideo) {
-      // Check video duration
+      // Check video duration with proper loading
       const video = document.createElement("video");
       video.preload = "metadata";
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        if (video.duration > MAX_VIDEO_DURATION) {
+      const objectUrl = URL.createObjectURL(file);
+      
+      video.onloadeddata = () => {
+        // Wait for video to be fully loaded before checking duration
+        const duration = video.duration;
+        
+        // Check if duration is valid (not NaN or Infinity)
+        if (!isFinite(duration) || isNaN(duration)) {
+          // If duration is not available, allow the video (some formats don't report duration)
+          setVideoDuration(0);
+          setMediaFile(file);
+          setMediaPreview(objectUrl);
+          setMode("video");
+          setStep("preview");
+          return;
+        }
+        
+        if (duration > MAX_VIDEO_DURATION) {
+          URL.revokeObjectURL(objectUrl);
           toast({
             variant: "destructive",
             title: "Video too long",
-            description: `Maximum video duration is ${MAX_VIDEO_DURATION} seconds. Your video is ${Math.round(video.duration)} seconds.`,
+            description: `Maximum ${MAX_VIDEO_DURATION} seconds allowed. Your video is ${Math.floor(duration)} seconds.`,
           });
+          // Reset file input
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
           return;
         }
-        setVideoDuration(video.duration);
+        
+        setVideoDuration(duration);
         setMediaFile(file);
-        setMediaPreview(URL.createObjectURL(file));
+        setMediaPreview(objectUrl);
         setMode("video");
         setStep("preview");
       };
-      video.src = URL.createObjectURL(file);
+      
+      video.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load video. Please try a different file.",
+        });
+      };
+      
+      video.src = objectUrl;
     } else {
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
