@@ -215,6 +215,7 @@ const Conversations = () => {
           table: "messages",
         },
         () => {
+          // Refresh conversations on any message change (including is_read updates)
           fetchConversations();
         }
       )
@@ -224,6 +225,18 @@ const Conversations = () => {
       supabase.removeChannel(channel);
     };
   };
+
+  // Cleanup expired statuses on load
+  useEffect(() => {
+    const cleanupExpiredStatuses = async () => {
+      try {
+        await supabase.from("statuses").delete().lt("expires_at", new Date().toISOString());
+      } catch (e) {
+        console.log("Status cleanup skipped");
+      }
+    };
+    cleanupExpiredStatuses();
+  }, []);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);

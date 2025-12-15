@@ -1,1 +1,4 @@
 project_id = "ptaugoubzjmfsicnhzoo"
+
+[functions.cleanup-expired-data]
+verify_jwt = false

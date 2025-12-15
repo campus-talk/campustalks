@@ -3,8 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useOneSignal } from "@/hooks/useOneSignal";
+import { supabase } from "@/integrations/supabase/client";
 
 // Lazy load pages for better performance
 const Index = lazy(() => import("./pages/Index"));
@@ -33,6 +34,18 @@ const LoadingScreen = () => (
 const App = () => {
   // Initialize OneSignal for push notifications
   useOneSignal();
+
+  // Cleanup expired data on app load
+  useEffect(() => {
+    const cleanup = async () => {
+      try {
+        await supabase.functions.invoke("cleanup-expired-data");
+      } catch (e) {
+        console.log("Cleanup skipped");
+      }
+    };
+    cleanup();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
