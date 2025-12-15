@@ -124,20 +124,21 @@ export const usePeerConnection = (currentUserId: string) => {
         endCall();
       }, CALL_TIMEOUT_MS);
 
-      // Get local media stream with highest quality
+      // Get local media stream with optimized quality constraints
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoEnabled ? {
-          width: { min: 640, ideal: 1920, max: 1920 },
-          height: { min: 480, ideal: 1080, max: 1080 },
+          width: { min: 480, ideal: 1280, max: 1920 },
+          height: { min: 360, ideal: 720, max: 1080 },
           facingMode: facingMode,
-          frameRate: { min: 24, ideal: 60, max: 60 }
+          frameRate: { min: 15, ideal: 30, max: 30 },
+          aspectRatio: { ideal: 16/9 }
         } : false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 48000,
-          channelCount: 2
+          channelCount: 1
         },
       });
       setLocalStream(stream);
@@ -303,20 +304,21 @@ export const usePeerConnection = (currentUserId: string) => {
       setIsCameraOn(callIsVideo);
       setIsMicOn(true);
 
-      // Get local media stream based on call type with highest quality
+      // Get local media stream based on call type with optimized quality
       const stream = await navigator.mediaDevices.getUserMedia({
         video: callIsVideo ? {
-          width: { min: 640, ideal: 1920, max: 1920 },
-          height: { min: 480, ideal: 1080, max: 1080 },
+          width: { min: 480, ideal: 1280, max: 1920 },
+          height: { min: 360, ideal: 720, max: 1080 },
           facingMode: facingMode,
-          frameRate: { min: 24, ideal: 60, max: 60 }
+          frameRate: { min: 15, ideal: 30, max: 30 },
+          aspectRatio: { ideal: 16/9 }
         } : false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 48000,
-          channelCount: 2
+          channelCount: 1
         },
       });
       setLocalStream(stream);
@@ -368,13 +370,14 @@ export const usePeerConnection = (currentUserId: string) => {
       // Stop current video track
       localStream.getVideoTracks().forEach(track => track.stop());
 
-      // Get new stream with switched camera at highest quality
+      // Get new stream with switched camera at optimized quality
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { min: 640, ideal: 1920, max: 1920 },
-          height: { min: 480, ideal: 1080, max: 1080 },
+          width: { min: 480, ideal: 1280, max: 1920 },
+          height: { min: 360, ideal: 720, max: 1080 },
           facingMode: newFacingMode,
-          frameRate: { min: 24, ideal: 60, max: 60 }
+          frameRate: { min: 15, ideal: 30, max: 30 },
+          aspectRatio: { ideal: 16/9 }
         },
         audio: false
       });

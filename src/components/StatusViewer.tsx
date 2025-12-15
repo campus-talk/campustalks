@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
-import { X, ChevronLeft, ChevronRight, Eye, Trash2 } from "lucide-react";
+import { X, Eye, Trash2, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Status {
   id: string;
@@ -46,9 +47,13 @@ const StatusViewer = ({
   const [isPaused, setIsPaused] = useState(false);
   const [viewers, setViewers] = useState<any[]>([]);
   const [showViewers, setShowViewers] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const progressInterval = useRef<NodeJS.Timeout | null>(null);
 
   const currentStatus = statuses[currentIndex];
   const isOwnStatus = currentStatus?.user_id === currentUserId;
+  const isVideo = currentStatus?.media_type === "video";
 
   const goToNext = useCallback(() => {
     if (currentIndex < statuses.length - 1) {
@@ -65,6 +70,15 @@ const StatusViewer = ({
       setProgress(0);
     }
   }, [currentIndex]);
+
+  // Reset index when opening
+  useEffect(() => {
+    if (open) {
+      setCurrentIndex(initialIndex);
+      setProgress(0);
+      setShowViewers(false);
+    }
+  }, [open, initialIndex]);
 
   // Mark status as viewed
   useEffect(() => {
@@ -107,9 +121,38 @@ const StatusViewer = ({
 
   // Auto-progress timer
   useEffect(() => {
-    if (!open || isPaused) return;
+    if (!open || isPaused) {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
+      return;
+    }
 
-    const interval = setInterval(() => {
+    // For videos, sync progress with video
+    if (isVideo && videoRef.current) {
+      const video = videoRef.current;
+      
+      const updateProgress = () => {
+        if (video.duration) {
+          const percent = (video.currentTime / video.duration) * 100;
+          setProgress(percent);
+          if (percent >= 100) {
+            goToNext();
+          }
+        }
+      };
+
+      video.addEventListener("timeupdate", updateProgress);
+      video.addEventListener("ended", goToNext);
+
+      return () => {
+        video.removeEventListener("timeupdate", updateProgress);
+        video.removeEventListener("ended", goToNext);
+      };
+    }
+
+    // For images/text, use timer
+    progressInterval.current = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           goToNext();
@@ -119,8 +162,12 @@ const StatusViewer = ({
       });
     }, 100);
 
-    return () => clearInterval(interval);
-  }, [open, isPaused, goToNext]);
+    return () => {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
+    };
+  }, [open, isPaused, goToNext, isVideo, currentIndex]);
 
   const handleDeleteStatus = async () => {
     if (!currentStatus) return;
@@ -154,12 +201,24 @@ const StatusViewer = ({
     }
   };
 
+  const handleTap = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+
+    if (x < width / 3) {
+      goToPrev();
+    } else if (x > (width * 2) / 3) {
+      goToNext();
+    }
+  };
+
   if (!currentStatus) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-md p-0 h-[85vh] max-h-[700px] overflow-hidden"
+        className="max-w-md p-0 h-[90vh] max-h-[700px] overflow-hidden bg-black border-0"
         onPointerDown={() => setIsPaused(true)}
         onPointerUp={() => setIsPaused(false)}
       >
@@ -170,9 +229,10 @@ const StatusViewer = ({
               key={index}
               className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden"
             >
-              <div
-                className="h-full bg-white transition-all"
-                style={{
+              <motion.div
+                className="h-full bg-white"
+                initial={{ width: index < currentIndex ? "100%" : "0%" }}
+                animate={{
                   width:
                     index < currentIndex
                       ? "100%"
@@ -180,6 +240,7 @@ const StatusViewer = ({
                       ? `${progress}%`
                       : "0%",
                 }}
+                transition={{ duration: 0.1 }}
               />
             </div>
           ))}
@@ -206,6 +267,19 @@ const StatusViewer = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isVideo && (
+              <button
+                onClick={() => {
+                  setIsMuted(!isMuted);
+                  if (videoRef.current) {
+                    videoRef.current.muted = !isMuted;
+                  }
+                }}
+                className="p-2 text-white hover:bg-white/20 rounded-full"
+              >
+                {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+            )}
             {isOwnStatus && (
               <Button
                 variant="ghost"
@@ -228,79 +302,99 @@ const StatusViewer = ({
         {/* Content */}
         <div
           className={cn(
-            "w-full h-full flex items-center justify-center",
+            "w-full h-full flex items-center justify-center cursor-pointer",
             currentStatus.media_type === "text" && "p-8"
           )}
           style={{
             backgroundColor:
               currentStatus.media_type === "text"
-                ? currentStatus.background_color || "#0ea5a9"
+                ? currentStatus.background_color || "#667eea"
                 : "#000",
           }}
+          onClick={handleTap}
         >
-          {currentStatus.media_type === "image" && currentStatus.media_url ? (
+          {currentStatus.media_type === "video" && currentStatus.media_url ? (
+            <video
+              ref={videoRef}
+              src={currentStatus.media_url}
+              className="max-w-full max-h-full object-contain"
+              autoPlay
+              muted={isMuted}
+              playsInline
+              loop={false}
+            />
+          ) : currentStatus.media_type === "image" && currentStatus.media_url ? (
             <img
               src={currentStatus.media_url}
               alt="Status"
               className="max-w-full max-h-full object-contain"
             />
           ) : (
-            <p className="text-white text-xl font-medium text-center">
+            <p className="text-white text-2xl font-medium text-center leading-relaxed">
               {currentStatus.content}
             </p>
           )}
         </div>
 
-        {/* Navigation */}
-        <button
-          onClick={goToPrev}
-          className="absolute left-0 top-1/2 -translate-y-1/2 p-4 text-white/50 hover:text-white"
-          disabled={currentIndex === 0}
-        >
-          <ChevronLeft className="w-8 h-8" />
-        </button>
-        <button
-          onClick={goToNext}
-          className="absolute right-0 top-1/2 -translate-y-1/2 p-4 text-white/50 hover:text-white"
-        >
-          <ChevronRight className="w-8 h-8" />
-        </button>
+        {/* Navigation hints */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 p-2 pointer-events-none">
+          {currentIndex > 0 && (
+            <ChevronLeft className="w-8 h-8 text-white/30" />
+          )}
+        </div>
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 p-2 pointer-events-none">
+          {currentIndex < statuses.length - 1 && (
+            <ChevronRight className="w-8 h-8 text-white/30" />
+          )}
+        </div>
 
         {/* Viewers (for own status) */}
         {isOwnStatus && (
           <button
-            onClick={() => setShowViewers(!showViewers)}
-            className="absolute bottom-4 left-4 flex items-center gap-2 text-white bg-black/30 px-3 py-2 rounded-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowViewers(!showViewers);
+            }}
+            className="absolute bottom-4 left-4 flex items-center gap-2 text-white bg-black/50 px-4 py-2 rounded-full z-20"
           >
             <Eye className="w-4 h-4" />
-            <span className="text-sm">{viewers.length}</span>
+            <span className="text-sm font-medium">{viewers.length} views</span>
           </button>
         )}
 
-        {showViewers && (
-          <div className="absolute bottom-16 left-4 right-4 bg-background/95 rounded-xl p-4 max-h-48 overflow-y-auto">
-            <h4 className="font-medium mb-2 text-foreground">Viewed by</h4>
-            {viewers.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No views yet</p>
-            ) : (
-              <div className="space-y-2">
-                {viewers.map((view) => (
-                  <div key={view.id} className="flex items-center gap-2">
-                    <Avatar className="w-8 h-8">
-                      <AvatarImage src={view.profiles?.avatar_url || ""} />
-                      <AvatarFallback>
-                        {view.profiles?.full_name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm text-foreground">
-                      {view.profiles?.full_name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <AnimatePresence>
+          {showViewers && (
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="absolute bottom-0 left-0 right-0 bg-background/95 rounded-t-3xl p-4 max-h-[50%] overflow-y-auto z-30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-12 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-4" />
+              <h4 className="font-semibold mb-4 text-foreground">Viewed by</h4>
+              {viewers.length === 0 ? (
+                <p className="text-muted-foreground text-sm text-center py-8">No views yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {viewers.map((view) => (
+                    <div key={view.id} className="flex items-center gap-3">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={view.profiles?.avatar_url || ""} />
+                        <AvatarFallback>
+                          {view.profiles?.full_name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm text-foreground font-medium">
+                        {view.profiles?.full_name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </DialogContent>
     </Dialog>
   );

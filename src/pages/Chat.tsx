@@ -22,6 +22,7 @@ import SmartReplies from "@/components/SmartReplies";
 import SuspiciousMessageWarning from "@/components/SuspiciousMessageWarning";
 import ReminderSuggestion from "@/components/ReminderSuggestion";
 import DateSeparator from "@/components/DateSeparator";
+import ChatUserProfile from "@/components/ChatUserProfile";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
 import { format, isSameDay } from "date-fns";
@@ -81,6 +82,7 @@ const Chat = () => {
   const [forwardDialog, setForwardDialog] = useState<{ messageId: string; content: string; type: string } | null>(null);
   const [scheduleDialog, setScheduleDialog] = useState(false);
   const [scheduledMessage, setScheduledMessage] = useState("");
+  const [userProfileOpen, setUserProfileOpen] = useState(false);
   
   // AI Features State
   const { settings: aiSettings } = useAISettings();
@@ -878,6 +880,22 @@ const Chat = () => {
       </AnimatePresence>
 
       <div className="h-screen flex flex-col geometric-pattern">
+        {/* Chat User Profile Dialog */}
+        <ChatUserProfile
+          open={userProfileOpen}
+          onOpenChange={setUserProfileOpen}
+          userId={otherUser?.id || ""}
+          currentUserId={currentUserId}
+          isGroup={isGroupChat}
+          conversationId={conversationId}
+          onStartCall={(video) => {
+            setUserProfileOpen(false);
+            if (otherUser) {
+              video ? startCall(otherUser.id, true, conversationId, isGroupChat) : startAudioCall(otherUser.id, conversationId, isGroupChat);
+            }
+          }}
+        />
+
         {/* Header */}
         <header className="gradient-primary text-white p-4 shadow-lg flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -889,15 +907,20 @@ const Chat = () => {
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <Avatar className="w-10 h-10 border-2 border-white/30">
-              <AvatarImage src={otherUser?.avatar_url || ""} alt={otherUser?.full_name} />
-              <AvatarFallback className="bg-white/20 text-white">
-                {otherUser?.full_name?.charAt(0) || "?"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h2 className="font-semibold">{otherUser?.full_name}</h2>
-            </div>
+            <button
+              onClick={() => setUserProfileOpen(true)}
+              className="flex items-center gap-3 flex-1 text-left hover:bg-white/10 rounded-lg p-1 -m-1 transition-colors"
+            >
+              <Avatar className="w-10 h-10 border-2 border-white/30">
+                <AvatarImage src={otherUser?.avatar_url || ""} alt={otherUser?.full_name} />
+                <AvatarFallback className="bg-white/20 text-white">
+                  {otherUser?.full_name?.charAt(0) || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <h2 className="font-semibold">{otherUser?.full_name}</h2>
+              </div>
+            </button>
             <Button
               variant="ghost"
               size="icon"
