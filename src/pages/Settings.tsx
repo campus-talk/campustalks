@@ -17,7 +17,7 @@ import UpdatePhoneDialog from "@/components/UpdatePhoneDialog";
 interface Profile {
   id: string;
   full_name: string;
-  username: string;
+  username: string | null;
   unique_key: string;
   avatar_url: string | null;
   bio: string | null;
@@ -30,6 +30,7 @@ const Settings = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [status, setStatus] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -67,8 +68,9 @@ const Settings = () => {
 
     setProfile(data);
     setFullName(data.full_name);
+    setUsername(data.username || "");
     setBio(data.bio || "");
-    setStatus(data.status);
+    setStatus(data.status || "Available");
     setAvatarPreview(data.avatar_url || "");
     setUserPhone(data.phone || null);
   };
@@ -113,6 +115,7 @@ const Settings = () => {
         .from("profiles")
         .update({
           full_name: fullName,
+          username: username.toLowerCase().replace(/[^a-z0-9_]/g, '') || null,
           bio: bio || null,
           status,
           avatar_url: avatarUrl,
@@ -211,14 +214,18 @@ const Settings = () => {
 
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                value={`@${profile?.username}`}
-                disabled
-                className="bg-muted/30"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder="username"
+                  className="bg-background/50 pl-8"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Username cannot be changed
+                Only lowercase letters, numbers and underscores
               </p>
             </div>
 

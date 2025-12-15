@@ -131,6 +131,13 @@ const Chat = () => {
   const markMessagesAsRead = async () => {
     if (!currentUserId || !conversationId) return;
     
+    // Get unread messages first
+    const unreadMessages = messages.filter(
+      m => m.sender_id !== currentUserId && !m.is_read
+    );
+    
+    if (unreadMessages.length === 0) return;
+    
     // Mark ALL unread messages in this conversation as read immediately
     const { error } = await supabase
       .from("messages")

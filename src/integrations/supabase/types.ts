@@ -673,6 +673,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_deleted_messages: { Args: never; Returns: undefined }
+      cleanup_expired_statuses: { Args: never; Returns: undefined }
       generate_unique_key: { Args: never; Returns: string }
       is_conversation_participant: {
         Args: { conversation_uuid: string; user_uuid: string }
