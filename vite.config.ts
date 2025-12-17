@@ -16,9 +16,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    cssCodeSplit: false,
+    cssCodeSplit: true,
     cssMinify: true,
-    assetsInlineLimit: 20000,
     target: "esnext",
     minify: "esbuild",
     rollupOptions: {
