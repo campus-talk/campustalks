@@ -35,7 +35,7 @@ const App = () => {
   // Initialize OneSignal for push notifications
   useOneSignal();
 
-  // Cleanup expired data on app load
+  // Cleanup expired data after page load (deferred to not block critical path)
   useEffect(() => {
     const cleanup = async () => {
       try {
@@ -44,7 +44,12 @@ const App = () => {
         console.log("Cleanup skipped");
       }
     };
-    cleanup();
+    // Defer cleanup to after page is interactive
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => cleanup(), { timeout: 5000 });
+    } else {
+      setTimeout(cleanup, 3000);
+    }
   }, []);
 
   return (
