@@ -16,6 +16,15 @@ export const useOneSignal = () => {
 
   useEffect(() => {
     const initOneSignal = async () => {
+      // Only initialize on production domain
+      const allowedDomains = ['campustalks.lovable.app', 'localhost'];
+      const currentHost = window.location.hostname;
+      
+      if (!allowedDomains.some(domain => currentHost.includes(domain) || currentHost === domain)) {
+        console.log("OneSignal: Skipping init on non-production domain");
+        return;
+      }
+
       // Check if user is logged in
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;

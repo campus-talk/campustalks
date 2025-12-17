@@ -482,12 +482,20 @@ const StatusViewer = ({
           )}
         </div>
 
-        {/* Story index indicator */}
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20">
-          <span className="text-white/60 text-xs font-medium bg-black/30 px-3 py-1 rounded-full">
-            {currentIndex + 1} / {statuses.length}
-          </span>
-        </div>
+        {/* Story navigation dots - only show if multiple */}
+        {statuses.length > 1 && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 flex gap-1">
+            {statuses.map((_, idx) => (
+              <div
+                key={idx}
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full transition-all",
+                  idx === currentIndex ? "bg-white w-3" : "bg-white/40"
+                )}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Viewers (for own status) */}
         {isOwnStatus && (
