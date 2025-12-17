@@ -267,41 +267,43 @@ const Conversations = () => {
   }
 
   return (
-    <div className="min-h-screen geometric-pattern pb-safe-nav">
-      {/* Header */}
-      <header className="gradient-primary text-white p-5 shadow-lg premium-shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Chats</h1>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20 rounded-full w-10 h-10"
-              onClick={() => setCreateGroupOpen(true)}
-            >
-              <Users className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20 rounded-full w-10 h-10"
-              onClick={() => navigate("/search")}
-            >
-              <Search className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20 rounded-full w-10 h-10 relative"
-              onClick={() => navigate("/notifications")}
-            >
-              <Bell className="w-5 h-5" />
-              {unreadNotifications > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 flex items-center justify-center bg-accent text-white text-[10px] font-bold rounded-full px-1">
-                  {unreadNotifications > 99 ? "99+" : unreadNotifications}
-                </span>
-              )}
-            </Button>
+    <div className="min-h-screen bg-background pb-safe-nav">
+      {/* Header - WhatsApp Style */}
+      <header className="bg-primary text-primary-foreground sticky top-0 z-40 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold tracking-tight">Campus Talks</h1>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-primary-foreground hover:bg-white/15 rounded-full h-10 w-10"
+                onClick={() => setCreateGroupOpen(true)}
+              >
+                <Users className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-primary-foreground hover:bg-white/15 rounded-full h-10 w-10"
+                onClick={() => navigate("/search")}
+              >
+                <Search className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-primary-foreground hover:bg-white/15 rounded-full h-10 w-10 relative"
+                onClick={() => navigate("/notifications")}
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-1 right-1 min-w-4 h-4 flex items-center justify-center bg-accent text-white text-[10px] font-bold rounded-full px-1">
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </span>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -341,44 +343,44 @@ const Conversations = () => {
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div className="divide-y divide-border/30">
             {conversations.map((conv, index) => (
               <motion.div
                 key={conv.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.03 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: index * 0.02 }}
                 onClick={() => navigate(`/chat/${conv.id}`)}
-                className="flex items-center gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-all active:scale-[0.99]"
+                className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/50 cursor-pointer transition-colors active:bg-muted"
               >
-                <Avatar className="w-14 h-14 border-2 border-primary/20 shadow-sm">
+                <Avatar className="w-14 h-14 border border-border/50">
                   <AvatarImage src={conv.is_group ? conv.group?.avatar_url || "" : conv.otherUser?.avatar_url || ""} />
-                  <AvatarFallback className="gradient-soft text-white text-xl font-medium">
+                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
                     {conv.is_group ? conv.group?.name.charAt(0) : conv.otherUser?.full_name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold truncate text-foreground">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <h3 className="font-semibold truncate text-foreground text-[15px]">
                       {conv.is_group ? conv.group?.name : conv.otherUser?.full_name}
                     </h3>
                     {conv.lastMessage && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className={`text-xs ${conv.unreadCount > 0 ? "text-primary font-semibold" : "text-muted-foreground"}`}>
                         {formatTime(conv.lastMessage.created_at)}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="text-sm text-muted-foreground truncate pr-2">
                       {conv.lastMessage
                         ? conv.lastMessage.message_type === "image"
-                          ? "📷 Image"
+                          ? "📷 Photo"
                           : conv.lastMessage.content
                         : "No messages yet"}
                     </p>
                     {conv.unreadCount > 0 && (
-                      <span className="gradient-soft text-white text-xs rounded-full px-2.5 py-1 ml-2 font-medium shadow-sm">
+                      <span className="bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 font-bold">
                         {conv.unreadCount}
                       </span>
                     )}

@@ -16,7 +16,6 @@ const BottomNav = () => {
     return unsubscribe;
   }, []);
 
-  // Reload counts when route changes (especially when leaving chat)
   useEffect(() => {
     loadCounts();
   }, [location.pathname]);
@@ -47,11 +46,7 @@ const BottomNav = () => {
   const subscribeToUpdates = () => {
     const msgChannel = supabase
       .channel("nav-messages")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        () => loadCounts()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => loadCounts())
       .subscribe();
 
     return () => {
@@ -67,8 +62,8 @@ const BottomNav = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/40 z-50 safe-area-pb">
-      <div className="flex items-stretch justify-around h-[80px] max-w-lg mx-auto px-2">
+    <nav className="fixed bottom-0 left-0 right-0 bg-card/98 backdrop-blur-xl border-t border-border/30 z-50">
+      <div className="flex items-stretch justify-around h-20 max-w-lg mx-auto px-1 pb-safe-bottom">
         {navItems.map((item, index) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -80,20 +75,18 @@ const BottomNav = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03 }}
               onClick={() => navigate(item.path)}
-              className="flex-1 flex flex-col items-center justify-center gap-1 relative active:scale-95 transition-transform"
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 relative active:scale-95 transition-transform py-2"
             >
               <motion.div
                 whileTap={{ scale: 0.9 }}
                 className={cn(
-                  "p-3.5 rounded-2xl transition-all duration-200 relative",
-                  isActive 
-                    ? "bg-primary/15 shadow-md" 
-                    : "hover:bg-muted"
+                  "p-3 rounded-2xl transition-all duration-200 relative",
+                  isActive ? "bg-primary/15" : "hover:bg-muted"
                 )}
               >
                 <Icon
                   className={cn(
-                    "w-7 h-7 transition-all duration-200",
+                    "w-6 h-6 transition-all duration-200",
                     isActive ? "text-primary" : "text-muted-foreground"
                   )}
                   strokeWidth={isActive ? 2.5 : 2}
@@ -110,7 +103,7 @@ const BottomNav = () => {
               </motion.div>
               <span
                 className={cn(
-                  "text-xs font-medium transition-colors duration-200",
+                  "text-[11px] font-medium transition-colors duration-200",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
@@ -119,7 +112,7 @@ const BottomNav = () => {
               {isActive && (
                 <motion.div
                   layoutId="activeNavIndicator"
-                  className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-primary to-accent rounded-b-full"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-gradient-to-r from-primary to-accent rounded-b-full"
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 />
               )}

@@ -164,9 +164,17 @@
   }
 
   /* Safe area padding for notched devices */
-  .safe-area-pb {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pb-safe-bottom {
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+}
+
+.pb-safe-nav {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+}
 
   .safe-area-pt {
     padding-top: env(safe-area-inset-top, 0px);

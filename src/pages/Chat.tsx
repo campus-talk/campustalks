@@ -1170,7 +1170,7 @@ const Chat = () => {
         </div>
 
         {/* Input */}
-        <div className="glass-effect border-t border-border flex-shrink-0 relative">
+        <div className="bg-card/95 backdrop-blur-xl border-t border-border/30 flex-shrink-0 relative pb-safe-bottom">
           {/* Smart Replies */}
           {smartReplies.length > 0 && (
             <SmartReplies
@@ -1194,7 +1194,7 @@ const Chat = () => {
             />
           )}
           
-          <form onSubmit={handleSendMessage} className="flex gap-2 p-3">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-3 pb-4">
             <input
               type="file"
               id="image-upload"
@@ -1207,21 +1207,23 @@ const Chat = () => {
               variant="ghost"
               size="icon"
               onClick={() => document.getElementById("image-upload")?.click()}
-              className="flex-shrink-0"
+              className="flex-shrink-0 h-11 w-11 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <Paperclip className="w-5 h-5" />
             </Button>
-            <Input
-              value={newMessage}
-              onChange={handleMessageChange}
-              placeholder={isGroupChat ? "Type @ to mention..." : "Type a message..."}
-              className="flex-1 bg-background/50"
-            />
+            <div className="flex-1 relative">
+              <Input
+                value={newMessage}
+                onChange={handleMessageChange}
+                placeholder={isGroupChat ? "Type @ to mention..." : "Type a message..."}
+                className="w-full h-12 bg-muted/50 border-0 rounded-full px-5 focus-visible:ring-1 focus-visible:ring-primary/50"
+              />
+            </div>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="flex-shrink-0"
+              className="flex-shrink-0 h-11 w-11 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
               onClick={() => {
                 if (newMessage.trim()) {
                   setScheduledMessage(newMessage);
@@ -1235,7 +1237,7 @@ const Chat = () => {
             <Button
               type="submit"
               disabled={sending || !newMessage.trim()}
-              className="gradient-primary hover:gradient-primary-hover text-white flex-shrink-0"
+              className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
               size="icon"
             >
               <Send className="w-5 h-5" />
