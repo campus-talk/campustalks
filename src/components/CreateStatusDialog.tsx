@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Image, Type, X, Loader2, Video, Camera, ChevronLeft, Send } from "lucide-react";
+import { Image, Type, X, Loader2, Video, ChevronLeft, Send, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -24,6 +24,8 @@ const BACKGROUND_COLORS = [
   "#3b82f6", // Blue
   "#ef4444", // Red
   "#000000", // Black
+  "#1f2937", // Dark gray
+  "#7c3aed", // Violet
 ];
 
 const MAX_VIDEO_DURATION = 15; // 15 seconds max
@@ -45,6 +47,7 @@ const CreateStatusDialog = ({
   const [videoDuration, setVideoDuration] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -204,7 +207,15 @@ const CreateStatusDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md p-0 h-[90vh] max-h-[700px] overflow-hidden bg-black border-0">
+      <DialogContent 
+        className="w-full h-full max-w-none max-h-none p-0 m-0 overflow-hidden bg-black border-0 rounded-none sm:rounded-none"
+        style={{ 
+          width: '100vw', 
+          height: '100vh',
+          maxWidth: '100vw',
+          maxHeight: '100vh',
+        }}
+      >
         <AnimatePresence mode="wait">
           {step === "select" ? (
             <motion.div
@@ -212,65 +223,102 @@ const CreateStatusDialog = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-full flex flex-col"
+              className="h-full flex flex-col bg-gradient-to-b from-background to-background/95"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <button onClick={handleClose} className="text-white/70 hover:text-white">
+              <div className="flex items-center justify-between p-4 border-b border-border/30 safe-area-pt">
+                <button onClick={handleClose} className="p-2 -ml-2 text-foreground/70 active:text-foreground">
                   <X className="w-6 h-6" />
                 </button>
-                <h2 className="text-white font-semibold">Create Status</h2>
-                <div className="w-6" />
+                <h2 className="text-foreground font-semibold text-lg">Add Status</h2>
+                <div className="w-10" />
               </div>
 
               {/* Options */}
-              <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
-                <button
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+                <p className="text-muted-foreground text-sm mb-4">What would you like to share?</p>
+                
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
                   onClick={handleTextMode}
-                  className="w-full max-w-xs flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:opacity-90 transition-opacity"
+                  className="w-full max-w-sm flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-primary to-accent text-primary-foreground active:opacity-90 transition-opacity shadow-lg"
                 >
-                  <Type className="w-8 h-8" />
-                  <div className="text-left">
-                    <p className="font-semibold">Text Status</p>
-                    <p className="text-sm text-white/70">Share your thoughts</p>
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                    <Type className="w-6 h-6" />
                   </div>
-                </button>
+                  <div className="text-left">
+                    <p className="font-semibold text-base">Text Status</p>
+                    <p className="text-sm opacity-80">Share your thoughts</p>
+                  </div>
+                </motion.button>
 
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    if (cameraInputRef.current) {
+                      cameraInputRef.current.click();
+                    }
+                  }}
+                  className="w-full max-w-sm flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 text-white active:opacity-90 transition-opacity shadow-lg"
+                >
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                    <Camera className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold text-base">Camera</p>
+                    <p className="text-sm opacity-80">Take a photo now</p>
+                  </div>
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     if (fileInputRef.current) {
                       fileInputRef.current.accept = "image/*";
                       fileInputRef.current.click();
                     }
                   }}
-                  className="w-full max-w-xs flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-pink-600 to-orange-500 text-white hover:opacity-90 transition-opacity"
+                  className="w-full max-w-sm flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white active:opacity-90 transition-opacity shadow-lg"
                 >
-                  <Image className="w-8 h-8" />
-                  <div className="text-left">
-                    <p className="font-semibold">Photo Status</p>
-                    <p className="text-sm text-white/70">Share a photo</p>
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                    <Image className="w-6 h-6" />
                   </div>
-                </button>
+                  <div className="text-left">
+                    <p className="font-semibold text-base">Photo Gallery</p>
+                    <p className="text-sm opacity-80">Choose from gallery</p>
+                  </div>
+                </motion.button>
 
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     if (fileInputRef.current) {
                       fileInputRef.current.accept = "video/*";
                       fileInputRef.current.click();
                     }
                   }}
-                  className="w-full max-w-xs flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-green-600 to-teal-500 text-white hover:opacity-90 transition-opacity"
+                  className="w-full max-w-sm flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:opacity-90 transition-opacity shadow-lg"
                 >
-                  <Video className="w-8 h-8" />
-                  <div className="text-left">
-                    <p className="font-semibold">Video Status</p>
-                    <p className="text-sm text-white/70">Max {MAX_VIDEO_DURATION} seconds</p>
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                    <Video className="w-6 h-6" />
                   </div>
-                </button>
+                  <div className="text-left">
+                    <p className="font-semibold text-base">Video Status</p>
+                    <p className="text-sm opacity-80">Max {MAX_VIDEO_DURATION} seconds</p>
+                  </div>
+                </motion.button>
 
                 <input
                   ref={fileInputRef}
                   type="file"
+                  onChange={handleMediaSelect}
+                  className="hidden"
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
                   onChange={handleMediaSelect}
                   className="hidden"
                 />
@@ -285,80 +333,89 @@ const CreateStatusDialog = ({
               className="h-full flex flex-col"
             >
               {/* Header */}
-              <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4">
-                <button
+              <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4 safe-area-pt">
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setStep("select")}
-                  className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
+                  className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white active:bg-black/70"
                 >
                   <ChevronLeft className="w-5 h-5" />
-                </button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  size="sm"
-                  className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Post
-                    </>
-                  )}
-                </Button>
+                </motion.button>
+                <motion.div whileTap={{ scale: 0.95 }}>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 h-10 font-semibold shadow-lg"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Post
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
               </div>
 
               {/* Preview Area */}
               <div
                 className={cn(
                   "flex-1 flex items-center justify-center overflow-hidden",
-                  mode === "text" && "p-8"
+                  mode === "text" && "p-6"
                 )}
                 style={{
                   backgroundColor: mode === "text" ? selectedColor : "#000",
                 }}
               >
                 {mode === "text" ? (
-                  <Textarea
-                    placeholder="What's on your mind?"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="bg-transparent border-none text-white text-center text-2xl font-medium placeholder:text-white/50 resize-none h-48 focus-visible:ring-0"
-                    maxLength={250}
-                    autoFocus
-                  />
+                  <div className="w-full max-w-lg">
+                    <Textarea
+                      placeholder="What's on your mind?"
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      className="bg-transparent border-none text-white text-center text-xl sm:text-2xl font-medium placeholder:text-white/50 resize-none min-h-[200px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                      maxLength={250}
+                      autoFocus
+                    />
+                    <p className="text-white/50 text-center text-sm mt-2">
+                      {content.length}/250
+                    </p>
+                  </div>
                 ) : mode === "video" && mediaPreview ? (
                   <video
                     ref={videoRef}
                     src={mediaPreview}
-                    className="max-w-full max-h-full object-contain"
+                    className="w-full h-full object-contain"
                     controls
                     autoPlay
                     muted
                     loop
+                    playsInline
                   />
                 ) : mediaPreview ? (
                   <img
                     src={mediaPreview}
                     alt="Preview"
-                    className="max-w-full max-h-full object-contain"
+                    className="w-full h-full object-contain"
                   />
                 ) : null}
               </div>
 
               {/* Color Picker for Text Mode */}
               {mode === "text" && (
-                <div className="absolute bottom-6 left-0 right-0">
-                  <div className="flex gap-3 justify-center px-4">
+                <div className="absolute bottom-0 left-0 right-0 pb-8 safe-area-pb">
+                  <div className="flex gap-3 justify-center px-4 py-4 overflow-x-auto">
                     {BACKGROUND_COLORS.map((color) => (
-                      <button
+                      <motion.button
                         key={color}
+                        whileTap={{ scale: 0.9 }}
                         onClick={() => setSelectedColor(color)}
                         className={cn(
-                          "w-10 h-10 rounded-full border-2 transition-all shadow-lg",
+                          "w-10 h-10 rounded-full border-2 transition-all shadow-lg flex-shrink-0",
                           selectedColor === color
-                            ? "border-white scale-125"
+                            ? "border-white scale-110"
                             : "border-white/30"
                         )}
                         style={{ backgroundColor: color }}
@@ -370,7 +427,7 @@ const CreateStatusDialog = ({
 
               {/* Video Duration Indicator */}
               {mode === "video" && videoDuration > 0 && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-full text-sm">
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium safe-area-pb">
                   {Math.round(videoDuration)}s / {MAX_VIDEO_DURATION}s
                 </div>
               )}

@@ -146,13 +146,29 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
     setViewerOpen(true);
   };
 
+  // Create all user groups for continuous story viewing
+  const allUserGroups = [
+    ...(myStatuses.length > 0 ? [{ userId: currentUserId, statuses: myStatuses }] : []),
+    ...otherStatuses.map(g => ({ userId: g.userId, statuses: g.statuses }))
+  ];
+
+  const handleUserChange = (userId: string) => {
+    const group = allUserGroups.find(g => g.userId === userId);
+    if (group) {
+      setSelectedStatuses(group.statuses);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="px-4 py-3">
-        <div className="flex gap-4">
-          <div className="w-16 h-16 rounded-full bg-muted animate-pulse" />
-          <div className="w-16 h-16 rounded-full bg-muted animate-pulse" />
-          <div className="w-16 h-16 rounded-full bg-muted animate-pulse" />
+      <div className="px-3 py-4">
+        <div className="flex gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <div className="w-[70px] h-[70px] rounded-full bg-muted animate-pulse" />
+              <div className="w-12 h-3 bg-muted animate-pulse rounded" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -161,7 +177,7 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
   return (
     <>
       <ScrollArea className="w-full">
-        <div className="flex gap-4 px-4 py-3">
+        <div className="flex gap-3 px-3 py-4">
           {/* My Status - Click to add new */}
           <StatusCircle
             avatarUrl={currentUserProfile.avatar_url}
@@ -186,7 +202,7 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
             />
           ))}
         </div>
-        <ScrollBar orientation="horizontal" />
+        <ScrollBar orientation="horizontal" className="invisible" />
       </ScrollArea>
 
       <CreateStatusDialog
@@ -202,6 +218,8 @@ const StatusBar = ({ currentUserId, currentUserProfile }: StatusBarProps) => {
         statuses={selectedStatuses}
         currentUserId={currentUserId}
         onStatusDeleted={fetchStatuses}
+        allUserGroups={allUserGroups}
+        onUserChange={handleUserChange}
       />
     </>
   );
