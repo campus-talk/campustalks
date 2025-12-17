@@ -19,5 +19,15 @@ export default defineConfig(({ mode }) => ({
     cssCodeSplit: false,
     cssMinify: true,
     assetsInlineLimit: 20000,
+    target: "esnext",
+    minify: "esbuild",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-popover"],
+        },
+      },
+    },
   },
 }));
