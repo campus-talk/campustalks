@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Eye } from "lucide-react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
@@ -9,9 +9,8 @@ interface StatusCircleProps {
   hasStatus?: boolean;
   isOwn?: boolean;
   isViewed?: boolean;
-  statusCount?: number;
   onClick?: () => void;
-  onViewStatus?: () => void;
+  onAddNew?: () => void;
 }
 
 const StatusCircle = ({
@@ -20,72 +19,61 @@ const StatusCircle = ({
   hasStatus = false,
   isOwn = false,
   isViewed = false,
-  statusCount = 0,
   onClick,
-  onViewStatus,
+  onAddNew,
 }: StatusCircleProps) => {
+  const getGradientStyle = () => {
+    if (!hasStatus) return {};
+    if (isViewed) {
+      return { background: 'hsl(var(--muted-foreground) / 0.4)' };
+    }
+    return { background: 'linear-gradient(45deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' };
+  };
+
   return (
-    <div className="flex flex-col items-center gap-1.5 min-w-[72px]">
+    <div className="flex flex-col items-center gap-1 min-w-[68px]">
       <div className="relative">
-        {/* Main circle with status ring */}
         <motion.div
           whileTap={{ scale: 0.95 }}
           onClick={onClick}
-          className={cn(
-            "p-[3px] rounded-full cursor-pointer transition-all",
-            hasStatus && !isViewed && "bg-gradient-to-tr from-primary via-accent to-primary",
-            hasStatus && isViewed && "bg-muted-foreground/40",
-            !hasStatus && isOwn && "bg-border border-2 border-dashed"
-          )}
+          className="cursor-pointer"
         >
-          <Avatar className="w-[64px] h-[64px] border-[3px] border-background">
-            <AvatarImage src={avatarUrl || ""} className="object-cover" />
-            <AvatarFallback className="bg-muted text-foreground font-semibold text-lg">
-              {name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <div
+            className={cn(
+              "p-[2.5px] rounded-full",
+              !hasStatus && isOwn && "border-2 border-dashed border-muted-foreground/50"
+            )}
+            style={hasStatus ? getGradientStyle() : {}}
+          >
+            <Avatar className="w-[58px] h-[58px] border-[2.5px] border-background">
+              <AvatarImage src={avatarUrl || ""} className="object-cover" />
+              <AvatarFallback className="bg-muted text-foreground font-semibold text-base">
+                {name.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </div>
         </motion.div>
         
-        {/* Add button for own status */}
+        {/* Add button - always show for own status */}
         {isOwn && (
-          <motion.div 
-            whileTap={{ scale: 0.9 }}
-            onClick={onClick}
-            className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-primary flex items-center justify-center border-[3px] border-background cursor-pointer shadow-md"
-          >
-            <Plus className="w-4 h-4 text-primary-foreground" strokeWidth={3} />
-          </motion.div>
-        )}
-
-        {/* View button for own statuses when they exist */}
-        {isOwn && hasStatus && onViewStatus && (
           <motion.div 
             whileTap={{ scale: 0.9 }}
             onClick={(e) => {
               e.stopPropagation();
-              onViewStatus();
+              onAddNew?.();
             }}
-            className="absolute -bottom-0.5 -left-0.5 w-7 h-7 rounded-full bg-accent flex items-center justify-center border-[3px] border-background cursor-pointer shadow-md"
+            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-background shadow-sm cursor-pointer"
           >
-            <Eye className="w-3.5 h-3.5 text-accent-foreground" />
+            <Plus className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
           </motion.div>
-        )}
-
-        {/* Status count badge */}
-        {statusCount > 1 && (
-          <div className="absolute -top-1 -right-1 min-w-[22px] h-[22px] rounded-full bg-primary flex items-center justify-center border-[3px] border-background shadow-md">
-            <span className="text-[10px] font-bold text-primary-foreground px-1">
-              {statusCount}
-            </span>
-          </div>
         )}
       </div>
       
       <span className={cn(
-        "text-[11px] truncate max-w-[72px] text-center leading-tight",
-        hasStatus && !isViewed ? "text-foreground font-semibold" : "text-muted-foreground font-medium"
+        "text-[11px] truncate max-w-[68px] text-center leading-tight",
+        hasStatus && !isViewed ? "text-foreground font-medium" : "text-muted-foreground"
       )}>
-        {isOwn ? (hasStatus ? "Your Status" : "Add Status") : name.split(" ")[0]}
+        {isOwn ? "Your story" : name.split(" ")[0]}
       </span>
     </div>
   );
