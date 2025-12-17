@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,30 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Verify user authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false },
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID");
     const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY");
 
@@ -35,6 +60,14 @@ serve(async (req: Request): Promise<Response> => {
 
     const request: PushNotificationRequest = await req.json();
     console.log("Push notification request:", JSON.stringify(request));
+
+    // Verify the sender matches the authenticated user
+    if (request.senderId !== user.id) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Sender mismatch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { type, recipientIds, senderId, senderName, content, callType, groupName } = request;
 
@@ -107,7 +140,7 @@ serve(async (req: Request): Promise<Response> => {
         notificationContent = { en: "You have a new notification", hi: "आपके पास एक नई सूचना है" };
     }
 
-    // OneSignal API request - removed android_channel_id to fix error
+    // OneSignal API request
     const oneSignalPayload = {
       app_id: ONESIGNAL_APP_ID,
       headings: headings,

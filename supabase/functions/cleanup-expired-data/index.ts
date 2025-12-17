@@ -13,13 +13,36 @@ serve(async (req) => {
   }
 
   try {
+    // Verify user authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false },
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use service role for cleanup operations
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Delete expired statuses (older than 24 hours)
-    const { data: deletedStatuses, error: statusError } = await supabase
+    const { data: deletedStatuses, error: statusError } = await adminClient
       .from('statuses')
       .delete()
       .lt('expires_at', new Date().toISOString())
@@ -30,7 +53,7 @@ serve(async (req) => {
     }
 
     // Delete messages marked as deleted_for_everyone
-    const { data: deletedMessages, error: messageError } = await supabase
+    const { data: deletedMessages, error: messageError } = await adminClient
       .from('messages')
       .delete()
       .eq('deleted_for_everyone', true)
@@ -41,7 +64,7 @@ serve(async (req) => {
     }
 
     // Delete orphaned status views (where status no longer exists)
-    const { error: viewsError } = await supabase.rpc('cleanup_expired_statuses');
+    const { error: viewsError } = await adminClient.rpc('cleanup_expired_statuses');
 
     console.log(`Cleanup complete: ${deletedStatuses?.length || 0} statuses, ${deletedMessages?.length || 0} messages`);
 
