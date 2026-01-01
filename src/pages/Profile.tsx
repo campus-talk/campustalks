@@ -146,25 +146,35 @@ const Profile = () => {
     if (!userId) return;
 
     try {
-      // Check if conversation already exists
-      const { data: existingConversations, error: fetchError } = await supabase
+      // Ensure we have an authenticated user + reliable current user id
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !user) {
+        navigate("/auth");
+        return;
+      }
+      const me = user.id;
+      if (!currentUserId) setCurrentUserId(me);
+
+      // Check if conversation already exists (avoid N+1 where possible)
+      const { data: myConvs, error: myConvsErr } = await supabase
         .from("conversation_participants")
         .select("conversation_id")
-        .eq("user_id", currentUserId);
+        .eq("user_id", me);
 
-      if (fetchError) throw fetchError;
+      if (myConvsErr) throw myConvsErr;
 
-      // Check if there's a conversation with both users
-      let conversationId = null;
-      
-      for (const conv of existingConversations || []) {
-        const { data: participants } = await supabase
+      let conversationId: string | null = null;
+
+      for (const conv of myConvs || []) {
+        const { data: participants, error: participantsErr } = await supabase
           .from("conversation_participants")
           .select("user_id")
           .eq("conversation_id", conv.conversation_id);
 
-        const userIds = participants?.map(p => p.user_id) || [];
-        if (userIds.includes(userId) && userIds.includes(currentUserId)) {
+        if (participantsErr) throw participantsErr;
+
+        const userIds = participants?.map((p) => p.user_id) || [];
+        if (userIds.includes(userId) && userIds.includes(me)) {
           conversationId = conv.conversation_id;
           break;
         }
@@ -175,17 +185,17 @@ const Profile = () => {
         const { data: newConv, error: convError } = await supabase
           .from("conversations")
           .insert({})
-          .select()
+          .select("id")
           .single();
 
         if (convError) throw convError;
         conversationId = newConv.id;
 
-        // Add participants
+        // Add participants (must use real authed user id, otherwise RLS will block)
         const { error: participantsError } = await supabase
           .from("conversation_participants")
           .insert([
-            { conversation_id: conversationId, user_id: currentUserId },
+            { conversation_id: conversationId, user_id: me },
             { conversation_id: conversationId, user_id: userId },
           ]);
 
