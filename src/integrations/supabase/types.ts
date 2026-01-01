@@ -381,6 +381,33 @@ export type Database = {
           },
         ]
       }
+      message_requests: {
+        Row: {
+          created_at: string | null
+          id: string
+          recipient_id: string
+          requester_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          recipient_id: string
+          requester_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          recipient_id?: string
+          requester_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -495,6 +522,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          is_private: boolean | null
           last_seen: string | null
           phone: string | null
           status: string | null
@@ -508,6 +536,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id: string
+          is_private?: boolean | null
           last_seen?: string | null
           phone?: string | null
           status?: string | null
@@ -521,6 +550,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          is_private?: boolean | null
           last_seen?: string | null
           phone?: string | null
           status?: string | null
@@ -734,6 +764,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_message_user: {
+        Args: { _recipient_id: string; _sender_id: string }
+        Returns: boolean
+      }
       cleanup_deleted_messages: { Args: never; Returns: undefined }
       cleanup_expired_statuses: { Args: never; Returns: undefined }
       generate_unique_key: { Args: never; Returns: string }
