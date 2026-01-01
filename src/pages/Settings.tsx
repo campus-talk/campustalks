@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight, Phone, Bot } from "lucide-react";
+import { ArrowLeft, Camera, Save, LogOut, UserX, ChevronRight, Phone, Bot, Globe, Lock, MessageCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -23,6 +24,7 @@ interface Profile {
   bio: string | null;
   status: string;
   phone: string | null;
+  is_private: boolean;
 }
 
 const Settings = () => {
@@ -39,9 +41,12 @@ const Settings = () => {
   const [blockedUsersOpen, setBlockedUsersOpen] = useState(false);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
   const [userPhone, setUserPhone] = useState<string | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   useEffect(() => {
     loadProfile();
+    loadPendingRequestsCount();
   }, []);
 
   const loadProfile = async () => {
@@ -73,6 +78,46 @@ const Settings = () => {
     setStatus(data.status || "Available");
     setAvatarPreview(data.avatar_url || "");
     setUserPhone(data.phone || null);
+    setIsPrivate(data.is_private || false);
+  };
+
+  const loadPendingRequestsCount = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { count } = await supabase
+      .from("message_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("recipient_id", user.id)
+      .eq("status", "pending");
+
+    setPendingRequestsCount(count || 0);
+  };
+
+  const handlePrivacyToggle = async (checked: boolean) => {
+    if (!profile) return;
+    setIsPrivate(checked);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_private: checked })
+      .eq("id", profile.id);
+
+    if (error) {
+      setIsPrivate(!checked);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: checked ? "Account set to Private" : "Account set to Public",
+        description: checked
+          ? "New people must send a request to message you"
+          : "Anyone can message you now",
+      });
+    }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,6 +306,50 @@ const Settings = () => {
               <Save className="w-5 h-5 mr-2" />
               {loading ? "Saving..." : "Save Changes"}
             </Button>
+
+            {/* Privacy Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-background/50">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full ${isPrivate ? "bg-amber-500/10" : "bg-green-500/10"}`}>
+                  {isPrivate ? (
+                    <Lock className="w-5 h-5 text-amber-500" />
+                  ) : (
+                    <Globe className="w-5 h-5 text-green-500" />
+                  )}
+                </div>
+                <div className="text-left">
+                  <span className="font-medium block">Private Account</span>
+                  <span className="text-sm text-muted-foreground">
+                    {isPrivate ? "Only approved users can message you" : "Anyone can message you"}
+                  </span>
+                </div>
+              </div>
+              <Switch checked={isPrivate} onCheckedChange={handlePrivacyToggle} />
+            </div>
+
+            {/* Message Requests */}
+            <button
+              onClick={() => navigate("/message-requests")}
+              className="w-full flex items-center justify-between p-4 rounded-xl bg-background/50 hover:bg-background/80 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-blue-500/10">
+                  <MessageCircle className="w-5 h-5 text-blue-500" />
+                </div>
+                <div className="text-left">
+                  <span className="font-medium block">Message Requests</span>
+                  <span className="text-sm text-muted-foreground">
+                    {pendingRequestsCount > 0 ? `${pendingRequestsCount} pending` : "No pending requests"}
+                  </span>
+                </div>
+              </div>
+              {pendingRequestsCount > 0 && (
+                <span className="bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 font-bold mr-2">
+                  {pendingRequestsCount}
+                </span>
+              )}
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
 
             {/* AI Assistant Section */}
             <button

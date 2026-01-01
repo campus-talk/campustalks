@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, MessageCircle, Video, Phone, UserX, UserCheck } from "lucide-react";
+import { ArrowLeft, MessageCircle, Video, Phone, UserX, UserCheck, Lock, SendHorizontal, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePeerConnection } from "@/hooks/usePeerConnection";
 import IncomingCallModal from "@/components/IncomingCallModal";
@@ -18,6 +18,7 @@ interface Profile {
   avatar_url: string | null;
   bio: string | null;
   status: string;
+  is_private: boolean;
 }
 
 const Profile = () => {
@@ -29,6 +30,8 @@ const Profile = () => {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<"none" | "pending" | "accepted" | "rejected">("none");
+  const [requestLoading, setRequestLoading] = useState(false);
   
   const {
     startCall,
@@ -56,6 +59,7 @@ const Profile = () => {
   useEffect(() => {
     if (currentUserId && userId) {
       checkBlockStatus();
+      checkRequestStatus();
     }
   }, [currentUserId, userId]);
 
@@ -73,6 +77,34 @@ const Profile = () => {
       .single();
     
     setIsBlocked(!!data);
+  };
+
+  const checkRequestStatus = async () => {
+    // Check if we already sent a request
+    const { data: sentRequest } = await supabase
+      .from("message_requests")
+      .select("status")
+      .eq("requester_id", currentUserId)
+      .eq("recipient_id", userId)
+      .single();
+
+    if (sentRequest) {
+      setRequestStatus(sentRequest.status as "pending" | "accepted" | "rejected");
+      return;
+    }
+
+    // Check if they sent us a request that we accepted
+    const { data: receivedRequest } = await supabase
+      .from("message_requests")
+      .select("status")
+      .eq("requester_id", userId)
+      .eq("recipient_id", currentUserId)
+      .eq("status", "accepted")
+      .single();
+
+    if (receivedRequest) {
+      setRequestStatus("accepted");
+    }
   };
 
   const handleToggleBlock = async () => {
@@ -212,6 +244,52 @@ const Profile = () => {
     }
   };
 
+  const handleSendRequest = async () => {
+    if (!userId || !currentUserId) return;
+    setRequestLoading(true);
+
+    try {
+      const { error } = await supabase.from("message_requests").insert({
+        requester_id: currentUserId,
+        recipient_id: userId,
+      });
+
+      if (error) throw error;
+
+      setRequestStatus("pending");
+      toast({
+        title: "Request sent",
+        description: `Waiting for ${profile?.full_name} to accept your request`,
+      });
+
+      // Create notification for recipient
+      const { data: senderProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .single();
+
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "message_request",
+        title: "New message request",
+        body: `${senderProfile?.full_name || "Someone"} wants to message you`,
+        sender_id: currentUserId,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
+  // Helper to check if user can message (public or accepted request or already has conversation)
+  const canMessage = !profile?.is_private || requestStatus === "accepted";
+
   const handleStartCall = () => {
     if (userId) {
       startCall(userId);
@@ -312,37 +390,78 @@ const Profile = () => {
             </p>
           )}
 
+          {/* Private Account Badge */}
+          {profile.is_private && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium mb-4">
+              <Lock className="w-3 h-3" />
+              Private Account
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 justify-center">
-            <Button
-              onClick={handleStartChat}
-              className="gradient-primary hover:gradient-primary-hover text-white font-semibold"
-              size="lg"
-              disabled={isBlocked}
-            >
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Message
-            </Button>
-            <Button
-              onClick={handleStartCall}
-              variant="outline"
-              size="lg"
-              className="border-primary text-primary hover:bg-primary/10"
-              disabled={isBlocked}
-            >
-              <Video className="w-5 h-5 mr-2" />
-              Video
-            </Button>
-            <Button
-              onClick={() => userId && startAudioCall(userId)}
-              variant="outline"
-              size="lg"
-              className="border-primary text-primary hover:bg-primary/10"
-              disabled={isBlocked}
-            >
-              <Phone className="w-5 h-5 mr-2" />
-              Audio
-            </Button>
+            {canMessage ? (
+              <>
+                <Button
+                  onClick={handleStartChat}
+                  className="gradient-primary hover:gradient-primary-hover text-white font-semibold"
+                  size="lg"
+                  disabled={isBlocked}
+                >
+                  <MessageCircle className="w-5 h-5 mr-2" />
+                  Message
+                </Button>
+                <Button
+                  onClick={handleStartCall}
+                  variant="outline"
+                  size="lg"
+                  className="border-primary text-primary hover:bg-primary/10"
+                  disabled={isBlocked}
+                >
+                  <Video className="w-5 h-5 mr-2" />
+                  Video
+                </Button>
+                <Button
+                  onClick={() => userId && startAudioCall(userId)}
+                  variant="outline"
+                  size="lg"
+                  className="border-primary text-primary hover:bg-primary/10"
+                  disabled={isBlocked}
+                >
+                  <Phone className="w-5 h-5 mr-2" />
+                  Audio
+                </Button>
+              </>
+            ) : requestStatus === "pending" ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-muted-foreground text-muted-foreground"
+                disabled
+              >
+                <Clock className="w-5 h-5 mr-2" />
+                Request Pending
+              </Button>
+            ) : requestStatus === "rejected" ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-destructive/50 text-destructive"
+                disabled
+              >
+                Request Declined
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSendRequest}
+                className="gradient-primary hover:gradient-primary-hover text-white font-semibold"
+                size="lg"
+                disabled={requestLoading || isBlocked}
+              >
+                <SendHorizontal className="w-5 h-5 mr-2" />
+                {requestLoading ? "Sending..." : "Send Message Request"}
+              </Button>
+            )}
           </div>
 
           {/* Block Button */}
