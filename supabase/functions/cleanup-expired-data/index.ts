@@ -40,16 +40,40 @@ serve(async (req) => {
       console.error('Message cleanup error:', messageError);
     }
 
+    // NEW: Cleanup expired message envelopes (48h+ old or delivered 1h+ ago)
+    const { data: deletedEnvelopes, error: envelopeError } = await adminClient
+      .from('message_envelopes')
+      .delete()
+      .or(`expires_at.lt.${new Date().toISOString()},and(is_delivered.eq.true,delivered_at.lt.${new Date(Date.now() - 3600000).toISOString()})`)
+      .select('id');
+
+    if (envelopeError) {
+      console.error('Envelope cleanup error:', envelopeError);
+    }
+
+    // NEW: Cleanup expired delete instructions (7 days+)
+    const { data: deletedInstructions, error: instructionError } = await adminClient
+      .from('delete_instructions')
+      .delete()
+      .lt('expires_at', new Date().toISOString())
+      .select('id');
+
+    if (instructionError) {
+      console.error('Delete instruction cleanup error:', instructionError);
+    }
+
     // Delete orphaned status views (where status no longer exists)
     const { error: viewsError } = await adminClient.rpc('cleanup_expired_statuses');
 
-    console.log(`Cleanup complete: ${deletedStatuses?.length || 0} statuses, ${deletedMessages?.length || 0} messages`);
+    console.log(`Cleanup complete: ${deletedStatuses?.length || 0} statuses, ${deletedMessages?.length || 0} messages, ${deletedEnvelopes?.length || 0} envelopes, ${deletedInstructions?.length || 0} delete instructions`);
 
     return new Response(
       JSON.stringify({
         success: true,
         deletedStatuses: deletedStatuses?.length || 0,
         deletedMessages: deletedMessages?.length || 0,
+        deletedEnvelopes: deletedEnvelopes?.length || 0,
+        deletedInstructions: deletedInstructions?.length || 0,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

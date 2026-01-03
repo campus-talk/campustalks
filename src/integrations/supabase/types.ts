@@ -212,6 +212,33 @@ export type Database = {
           },
         ]
       }
+      delete_instructions: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          initiated_by: string
+          message_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          initiated_by: string
+          message_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          initiated_by?: string
+          message_id?: string
+        }
+        Relationships: []
+      }
       flagged_messages: {
         Row: {
           confidence: number | null
@@ -312,6 +339,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      message_envelopes: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          delivered_at: string | null
+          encrypted_payload: string
+          expires_at: string | null
+          id: string
+          is_delivered: boolean | null
+          is_forwarded: boolean | null
+          message_type: string | null
+          receiver_id: string
+          reply_to: string | null
+          sender_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          delivered_at?: string | null
+          encrypted_payload: string
+          expires_at?: string | null
+          id?: string
+          is_delivered?: boolean | null
+          is_forwarded?: boolean | null
+          message_type?: string | null
+          receiver_id: string
+          reply_to?: string | null
+          sender_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          delivered_at?: string | null
+          encrypted_payload?: string
+          expires_at?: string | null
+          id?: string
+          is_delivered?: boolean | null
+          is_forwarded?: boolean | null
+          message_type?: string | null
+          receiver_id?: string
+          reply_to?: string | null
+          sender_id?: string
+        }
+        Relationships: []
       }
       message_mentions: {
         Row: {
@@ -769,6 +841,7 @@ export type Database = {
         Returns: boolean
       }
       cleanup_deleted_messages: { Args: never; Returns: undefined }
+      cleanup_expired_envelopes: { Args: never; Returns: undefined }
       cleanup_expired_statuses: { Args: never; Returns: undefined }
       generate_unique_key: { Args: never; Returns: string }
       is_conversation_participant: {
