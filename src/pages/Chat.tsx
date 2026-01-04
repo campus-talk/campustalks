@@ -70,7 +70,12 @@ const Chat = () => {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
   const [sending, setSending] = useState(false);
+
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const initialAutoScrollDoneRef = useRef(false);
+
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; isSent: boolean } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ messageId: string; canDeleteForEveryone: boolean } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -116,6 +121,7 @@ const Chat = () => {
   } = usePeerConnection(currentUserId);
 
   useEffect(() => {
+    initialAutoScrollDoneRef.current = false;
     initializeChat();
     subscribeToMessages();
   }, [conversationId]);
@@ -127,19 +133,37 @@ const Chat = () => {
     }
   }, [currentUserId, conversationId]);
 
+  // Initial auto-scroll only (do not force scroll when user is reading older messages)
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (messages.length === 0) return;
+    if (initialAutoScrollDoneRef.current) return;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    requestAnimationFrame(() => {
+      scrollToBottom("auto");
+      initialAutoScrollDoneRef.current = true;
+    });
+  }, [messages.length]);
+
+  const handleMessagesScroll = () => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isAtBottomRef.current = distanceFromBottom < 80;
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const el = messagesScrollRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior });
+      return;
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   // Mark all unread messages as read when chat opens (server-side update)
   const markMessagesAsReadOnOpen = async () => {
     if (!currentUserId || !conversationId) return;
     
-    // Direct server-side update - mark ALL unread messages in this conversation as read
     const { error } = await supabase
       .from("messages")
       .update({ is_read: true })
@@ -333,14 +357,38 @@ const Chat = () => {
           filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload) => {
-          const newMessage = { ...(payload.new as Message), reactions: [] };
-          setMessages((prev) => [...prev, newMessage]);
-          
-          // Generate smart replies for incoming messages
-          if (newMessage.sender_id !== currentUserId) {
-            generateSmartRepliesForMessage(newMessage);
-            handleAutoReply(newMessage);
+          const incoming = { ...(payload.new as Message), reactions: [] };
+
+          const shouldAutoScroll =
+            incoming.sender_id === currentUserId || isAtBottomRef.current;
+
+          setMessages((prev) => {
+            const next = [...prev, incoming];
+            return next;
+          });
+
+          if (shouldAutoScroll) {
+            requestAnimationFrame(() => scrollToBottom("smooth"));
           }
+
+          // Generate smart replies for incoming messages
+          if (incoming.sender_id !== currentUserId) {
+            generateSmartRepliesForMessage(incoming);
+            handleAutoReply(incoming);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Message;
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
         }
       )
       .subscribe();
@@ -941,7 +989,11 @@ const Chat = () => {
 
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
+        <div
+          ref={messagesScrollRef}
+          onScroll={handleMessagesScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-4 pb-2"
+        >
           {replyingTo && (
             <div className="sticky top-0 z-10 glass-effect border-l-4 border-primary p-3 rounded-lg mb-2">
               <div className="flex items-center justify-between">
