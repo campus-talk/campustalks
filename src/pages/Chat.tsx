@@ -120,27 +120,26 @@ const Chat = () => {
     subscribeToMessages();
   }, [conversationId]);
 
+  // Mark messages as read immediately when chat opens
+  useEffect(() => {
+    if (currentUserId && conversationId) {
+      markMessagesAsReadOnOpen();
+    }
+  }, [currentUserId, conversationId]);
+
   useEffect(() => {
     scrollToBottom();
-    // Mark unread messages as read when viewing
-    markMessagesAsRead();
-  }, [messages, currentUserId]);
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const markMessagesAsRead = async () => {
+  // Mark all unread messages as read when chat opens (server-side update)
+  const markMessagesAsReadOnOpen = async () => {
     if (!currentUserId || !conversationId) return;
     
-    // Get unread messages first
-    const unreadMessages = messages.filter(
-      m => m.sender_id !== currentUserId && !m.is_read
-    );
-    
-    if (unreadMessages.length === 0) return;
-    
-    // Mark ALL unread messages in this conversation as read immediately
+    // Direct server-side update - mark ALL unread messages in this conversation as read
     const { error } = await supabase
       .from("messages")
       .update({ is_read: true })
@@ -149,7 +148,7 @@ const Chat = () => {
       .eq("is_read", false);
     
     if (!error) {
-      // Update local state immediately
+      // Update local state immediately for responsive UI
       setMessages(prev => prev.map(m => 
         m.sender_id !== currentUserId ? { ...m, is_read: true } : m
       ));

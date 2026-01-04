@@ -210,12 +210,24 @@ const Conversations = () => {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "messages",
         },
         () => {
-          // Refresh conversations on any message change (including is_read updates)
+          // Refresh on new messages
+          fetchConversations();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+        },
+        () => {
+          // Refresh when messages are marked as read
           fetchConversations();
         }
       )
