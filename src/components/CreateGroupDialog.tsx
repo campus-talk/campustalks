@@ -116,30 +116,36 @@ const CreateGroupDialog = ({ open, onOpenChange, currentUserId }: CreateGroupDia
       if (membersError) throw membersError;
 
       // Create conversation for the group
-      const { data: conversation, error: convError } = await supabase
+      const conversationId = crypto.randomUUID();
+      const { error: convError } = await supabase
         .from("conversations")
         .insert({
+          id: conversationId,
           group_id: group.id,
           is_group: true,
-        })
-        .select()
-        .single();
+        });
 
       if (convError) throw convError;
 
-      // Add all members to conversation_participants
-      const participants = [currentUserId, ...Array.from(selectedUsers)].map(
-        (userId) => ({
-          conversation_id: conversation.id,
-          user_id: userId,
-        })
-      );
-
-      const { error: participantsError } = await supabase
+      // Add all members to conversation_participants (creator first)
+      const { error: creatorParticipantErr } = await supabase
         .from("conversation_participants")
-        .insert(participants);
+        .insert({ conversation_id: conversationId, user_id: currentUserId });
 
-      if (participantsError) throw participantsError;
+      if (creatorParticipantErr) throw creatorParticipantErr;
+
+      const otherParticipants = Array.from(selectedUsers).map((userId) => ({
+        conversation_id: conversationId,
+        user_id: userId,
+      }));
+
+      if (otherParticipants.length) {
+        const { error: participantsError } = await supabase
+          .from("conversation_participants")
+          .insert(otherParticipants);
+
+        if (participantsError) throw participantsError;
+      }
 
       toast({
         title: "Group created!",
