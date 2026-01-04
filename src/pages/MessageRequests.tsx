@@ -117,26 +117,33 @@ const MessageRequests = () => {
         .update({ status: "accepted", updated_at: new Date().toISOString() })
         .eq("id", request.id);
 
-      // Create conversation
-      const { data: newConv } = await supabase
+      // Create conversation (avoid returning rows; add participants first to satisfy RLS)
+      const conversationId = crypto.randomUUID();
+      const { error: convErr } = await supabase
         .from("conversations")
-        .insert({})
-        .select("id")
-        .single();
+        .insert({ id: conversationId });
 
-      if (newConv) {
-        await supabase.from("conversation_participants").insert([
-          { conversation_id: newConv.id, user_id: currentUserId },
-          { conversation_id: newConv.id, user_id: request.requester_id },
-        ]);
+      if (convErr) throw convErr;
 
-        toast({
-          title: "Request accepted",
-          description: `You can now chat with ${request.requester?.full_name}`,
-        });
+      // Add participants in correct order (self first)
+      const { error: meParticipantErr } = await supabase
+        .from("conversation_participants")
+        .insert({ conversation_id: conversationId, user_id: currentUserId });
 
-        navigate(`/chat/${newConv.id}`);
-      }
+      if (meParticipantErr) throw meParticipantErr;
+
+      const { error: requesterParticipantErr } = await supabase
+        .from("conversation_participants")
+        .insert({ conversation_id: conversationId, user_id: request.requester_id });
+
+      if (requesterParticipantErr) throw requesterParticipantErr;
+
+      toast({
+        title: "Request accepted",
+        description: `You can now chat with ${request.requester?.full_name}`,
+      });
+
+      navigate(`/chat/${conversationId}`);
     } catch (error: any) {
       toast({
         variant: "destructive",

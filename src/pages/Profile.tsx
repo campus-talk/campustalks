@@ -214,24 +214,28 @@ const Profile = () => {
 
       // Create new conversation if none exists
       if (!conversationId) {
-        const { data: newConv, error: convError } = await supabase
+        // IMPORTANT: Don't rely on returning rows here (RLS can block SELECT before participants exist)
+        const newConversationId = crypto.randomUUID();
+
+        const { error: convError } = await supabase
           .from("conversations")
-          .insert({})
-          .select("id")
-          .single();
+          .insert({ id: newConversationId });
 
         if (convError) throw convError;
-        conversationId = newConv.id;
+        conversationId = newConversationId;
 
-        // Add participants (must use real authed user id, otherwise RLS will block)
-        const { error: participantsError } = await supabase
+        // Add participants in the correct order (self first, then receiver)
+        const { error: meParticipantErr } = await supabase
           .from("conversation_participants")
-          .insert([
-            { conversation_id: conversationId, user_id: me },
-            { conversation_id: conversationId, user_id: userId },
-          ]);
+          .insert({ conversation_id: conversationId, user_id: me });
 
-        if (participantsError) throw participantsError;
+        if (meParticipantErr) throw meParticipantErr;
+
+        const { error: receiverParticipantErr } = await supabase
+          .from("conversation_participants")
+          .insert({ conversation_id: conversationId, user_id: userId });
+
+        if (receiverParticipantErr) throw receiverParticipantErr;
       }
 
       navigate(`/chat/${conversationId}`);
