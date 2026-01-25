@@ -856,6 +856,10 @@ export type Database = {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
+      mark_conversation_read: {
+        Args: { conversation_uuid: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
