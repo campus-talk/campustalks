@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search, Users, Bell } from "lucide-react";
+import { Search, Users, Bell, MoreVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateGroupDialog from "@/components/CreateGroupDialog";
 import StatusBar from "@/components/StatusBar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Conversation {
   id: string;
@@ -42,15 +47,21 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
-  const [totalUnread, setTotalUnread] = useState(0);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Memoize total unread
+  const totalUnread = useMemo(() => 
+    conversations.reduce((sum, c) => sum + c.unreadCount, 0), 
+    [conversations]
+  );
 
   // Refetch when returning to this page
   useEffect(() => {
     fetchConversations();
-    subscribeToMessages();
+    const unsubscribe = subscribeToMessages();
     loadNotificationCount();
+    return unsubscribe;
   }, [location.key]);
 
   const loadNotificationCount = async () => {
@@ -85,7 +96,7 @@ const Conversations = () => {
     return user?.id || "";
   };
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const userId = await getCurrentUser();
       if (!userId) return;
@@ -100,89 +111,101 @@ const Conversations = () => {
 
       const conversationIds = participations?.map((p) => p.conversation_id) || [];
       if (conversationIds.length === 0) {
+        setConversations([]);
         setLoading(false);
         return;
       }
 
-      // Get conversations with group info
-      const { data: convs } = await supabase
-        .from("conversations")
-        .select("id, is_group, group_id")
-        .in("id", conversationIds);
+      // Batch fetch conversations, participants, and last messages
+      const [convsResult, allParticipantsResult] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select("id, is_group, group_id")
+          .in("id", conversationIds),
+        supabase
+          .from("conversation_participants")
+          .select("conversation_id, user_id")
+          .in("conversation_id", conversationIds),
+      ]);
 
-      // Get all participants
-      const { data: allParticipants } = await supabase
-        .from("conversation_participants")
-        .select("conversation_id, user_id")
-        .in("conversation_id", conversationIds);
+      const convs = convsResult.data || [];
+      const allParticipants = allParticipantsResult.data || [];
 
       // Get other users' profiles
       const otherUserIds = allParticipants
-        ?.filter((p) => p.user_id !== userId)
-        .map((p) => p.user_id) || [];
+        .filter((p) => p.user_id !== userId)
+        .map((p) => p.user_id);
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, status")
-        .in("id", otherUserIds);
+      const uniqueOtherUserIds = [...new Set(otherUserIds)];
 
       // Get groups
-      const groupIds = convs?.filter(c => c.is_group && c.group_id).map(c => c.group_id!) || [];
-      const { data: groups } = groupIds.length > 0 ? await supabase
-        .from("groups")
-        .select("id, name, avatar_url")
-        .in("id", groupIds) : { data: [] };
+      const groupIds = convs.filter(c => c.is_group && c.group_id).map(c => c.group_id!) || [];
 
-      const conversationsData: Conversation[] = [];
-      let unreadTotal = 0;
+      const [profilesResult, groupsResult] = await Promise.all([
+        uniqueOtherUserIds.length > 0 
+          ? supabase.from("profiles").select("id, full_name, avatar_url, status").in("id", uniqueOtherUserIds)
+          : { data: [] },
+        groupIds.length > 0 
+          ? supabase.from("groups").select("id, name, avatar_url").in("id", groupIds)
+          : { data: [] },
+      ]);
 
-      for (const convId of conversationIds) {
-        const conv = convs?.find(c => c.id === convId);
-        const { data: messages } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("conversation_id", convId)
-          .order("created_at", { ascending: false })
-          .limit(1);
+      const profiles = profilesResult.data || [];
+      const groups = groupsResult.data || [];
 
-        const { count } = await supabase
-          .from("messages")
-          .select("*", { count: "exact", head: true })
-          .eq("conversation_id", convId)
-          .eq("is_read", false)
-          .neq("sender_id", userId);
+      // Fetch last message and unread count for each conversation in parallel
+      const conversationPromises = conversationIds.map(async (convId) => {
+        const conv = convs.find(c => c.id === convId);
+        
+        const [messagesResult, unreadResult] = await Promise.all([
+          supabase
+            .from("messages")
+            .select("content, created_at, is_read, sender_id, message_type")
+            .eq("conversation_id", convId)
+            .order("created_at", { ascending: false })
+            .limit(1),
+          supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("conversation_id", convId)
+            .eq("is_read", false)
+            .neq("sender_id", userId),
+        ]);
 
-        const unreadCount = count || 0;
-        unreadTotal += unreadCount;
+        const lastMessage = messagesResult.data?.[0] || null;
+        const unreadCount = unreadResult.count || 0;
 
         if (conv?.is_group) {
-          const group = groups?.find(g => g.id === conv.group_id);
+          const group = groups.find(g => g.id === conv.group_id);
           if (group) {
-            conversationsData.push({
+            return {
               id: convId,
               is_group: true,
               group,
-              lastMessage: messages?.[0] || null,
+              lastMessage,
               unreadCount,
-            });
+            } as Conversation;
           }
         } else {
-          const otherUserId = allParticipants?.find(
+          const otherUserId = allParticipants.find(
             (p) => p.conversation_id === convId && p.user_id !== userId
           )?.user_id;
-          const otherUser = profiles?.find((p) => p.id === otherUserId);
+          const otherUser = profiles.find((p) => p.id === otherUserId);
           
           if (otherUser) {
-            conversationsData.push({
+            return {
               id: convId,
               is_group: false,
               otherUser,
-              lastMessage: messages?.[0] || null,
+              lastMessage,
               unreadCount,
-            });
+            } as Conversation;
           }
         }
-      }
+        return null;
+      });
+
+      const conversationsData = (await Promise.all(conversationPromises)).filter(Boolean) as Conversation[];
 
       // Sort by last message time
       conversationsData.sort((a, b) => {
@@ -192,7 +215,6 @@ const Conversations = () => {
       });
 
       setConversations(conversationsData);
-      setTotalUnread(unreadTotal);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -202,52 +224,38 @@ const Conversations = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const subscribeToMessages = () => {
+  const subscribeToMessages = useCallback(() => {
     const channel = supabase
       .channel("conversations-updates")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
-        () => {
-          // Refresh on new messages
-          fetchConversations();
-        }
+        { event: "INSERT", schema: "public", table: "messages" },
+        () => fetchConversations()
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-        },
-        () => {
-          // Refresh when messages are marked as read
-          fetchConversations();
-        }
+        { event: "UPDATE", schema: "public", table: "messages" },
+        () => fetchConversations()
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  };
+  }, [fetchConversations]);
 
-  // Cleanup expired statuses on load
+  // Cleanup expired statuses on load (deferred)
   useEffect(() => {
-    const cleanupExpiredStatuses = async () => {
-      try {
-        await supabase.from("statuses").delete().lt("expires_at", new Date().toISOString());
-      } catch (e) {
-        console.log("Status cleanup skipped");
-      }
+    const cleanup = () => {
+      supabase.from("statuses").delete().lt("expires_at", new Date().toISOString()).then(() => {});
     };
-    cleanupExpiredStatuses();
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(cleanup, { timeout: 3000 });
+    } else {
+      setTimeout(cleanup, 2000);
+    }
   }, []);
 
   const formatTime = (timestamp: string) => {
@@ -258,11 +266,12 @@ const Conversations = () => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    if (diffMins < 1) return "now";
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'short' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const handleSignOut = async () => {
@@ -272,50 +281,59 @@ const Conversations = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center geometric-pattern">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-safe-nav">
-      {/* Header - WhatsApp Style */}
-      <header className="bg-primary text-primary-foreground sticky top-0 z-40 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">Campus Talks</h1>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-primary-foreground hover:bg-white/15 rounded-full h-10 w-10"
-                onClick={() => setCreateGroupOpen(true)}
-              >
-                <Users className="w-5 h-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-primary-foreground hover:bg-white/15 rounded-full h-10 w-10"
-                onClick={() => navigate("/search")}
-              >
-                <Search className="w-5 h-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-primary-foreground hover:bg-white/15 rounded-full h-10 w-10 relative"
-                onClick={() => navigate("/notifications")}
-              >
-                <Bell className="w-5 h-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute top-1 right-1 min-w-4 h-4 flex items-center justify-center bg-accent text-white text-[10px] font-bold rounded-full px-1">
-                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
-                  </span>
-                )}
-              </Button>
-            </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* WhatsApp-style Header */}
+      <header className="bg-primary text-primary-foreground sticky top-0 z-40">
+        <div className="flex items-center justify-between px-4 py-3">
+          <h1 className="text-xl font-semibold">Campus Talks</h1>
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-primary-foreground hover:bg-white/10 h-10 w-10"
+              onClick={() => navigate("/search")}
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-primary-foreground hover:bg-white/10 h-10 w-10"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setCreateGroupOpen(true)}>
+                  <Users className="w-4 h-4 mr-2" />
+                  New group
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/notifications")}>
+                  <Bell className="w-4 h-4 mr-2" />
+                  Notifications
+                  {unreadNotifications > 0 && (
+                    <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full px-1.5">
+                      {unreadNotifications}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -328,7 +346,7 @@ const Conversations = () => {
 
       {/* Status Bar */}
       {currentUserProfile && (
-        <div className="border-b border-border/50">
+        <div className="border-b border-border/30 bg-card">
           <StatusBar
             currentUserId={currentUserId}
             currentUserProfile={currentUserProfile}
@@ -337,54 +355,54 @@ const Conversations = () => {
       )}
 
       {/* Conversations List */}
-      <div className="max-w-7xl mx-auto">
+      <div className="flex-1 overflow-y-auto pb-safe-nav">
         {conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-6">
-            <div className="w-16 h-16 gradient-soft rounded-full flex items-center justify-center mb-4 shadow-lg">
-              <Search className="w-8 h-8 text-white" />
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-4">
+              <Search className="w-10 h-10 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground text-center mb-4">
-              No conversations yet. Start by searching for people!
+            <h3 className="text-lg font-medium text-foreground mb-1">No chats yet</h3>
+            <p className="text-muted-foreground text-center text-sm mb-4">
+              Start a conversation by searching for people
             </p>
             <Button
               onClick={() => navigate("/search")}
-              className="gradient-soft hover:opacity-90 shadow-lg shadow-primary/20"
+              className="bg-primary hover:bg-primary/90"
             >
-              <Search className="w-5 h-5 mr-2" />
-              Search People
+              <Search className="w-4 h-4 mr-2" />
+              Find people
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border/30">
-            {conversations.map((conv, index) => (
-              <motion.div
+          <div>
+            {conversations.map((conv) => (
+              <div
                 key={conv.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: index * 0.02 }}
                 onClick={() => navigate(`/chat/${conv.id}`)}
-                className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/50 cursor-pointer transition-colors active:bg-muted"
+                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors active:bg-muted border-b border-border/20"
               >
-                <Avatar className="w-14 h-14 border border-border/50">
+                {/* Avatar */}
+                <Avatar className="w-12 h-12 flex-shrink-0">
                   <AvatarImage src={conv.is_group ? conv.group?.avatar_url || "" : conv.otherUser?.avatar_url || ""} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-                    {conv.is_group ? conv.group?.name.charAt(0) : conv.otherUser?.full_name.charAt(0)}
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                    {conv.is_group ? conv.group?.name.charAt(0).toUpperCase() : conv.otherUser?.full_name.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
 
+                {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
-                    <h3 className="font-semibold truncate text-foreground text-[15px]">
+                    <h3 className="font-medium text-foreground truncate text-[15px]">
                       {conv.is_group ? conv.group?.name : conv.otherUser?.full_name}
                     </h3>
                     {conv.lastMessage && (
-                      <span className={`text-xs ${conv.unreadCount > 0 ? "text-primary font-semibold" : "text-muted-foreground"}`}>
+                      <span className={`text-xs flex-shrink-0 ml-2 ${conv.unreadCount > 0 ? "text-primary font-medium" : "text-muted-foreground"}`}>
                         {formatTime(conv.lastMessage.created_at)}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground truncate pr-2">
+                    <p className={`text-sm truncate pr-2 ${conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                       {conv.lastMessage
                         ? conv.lastMessage.message_type === "image"
                           ? "📷 Photo"
@@ -392,13 +410,13 @@ const Conversations = () => {
                         : "No messages yet"}
                     </p>
                     {conv.unreadCount > 0 && (
-                      <span className="bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 font-bold">
-                        {conv.unreadCount}
+                      <span className="bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 font-medium flex-shrink-0">
+                        {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
                       </span>
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}
