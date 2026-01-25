@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -144,12 +144,7 @@ const Chat = () => {
     });
   }, [messages.length]);
 
-  const handleMessagesScroll = () => {
-    const el = messagesScrollRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    isAtBottomRef.current = distanceFromBottom < 80;
-  };
+  // handleMessagesScroll moved below markMessagesAsReadOnOpen
 
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     const el = messagesScrollRef.current;
@@ -160,30 +155,45 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  // Mark all unread messages as read when chat opens (server-side update)
-  const markMessagesAsReadOnOpen = async () => {
+  // Mark all unread messages as read when chat opens (server-side update via RPC)
+  const markMessagesAsReadOnOpen = useCallback(async () => {
     if (!currentUserId || !conversationId) return;
 
-    // IMPORTANT: receivers cannot UPDATE messages directly due to RLS.
-    // Use a secure server-side RPC that only marks messages read for this conversation.
-    const { data, error } = await (supabase.rpc as any)(
-      "mark_conversation_read",
-      { conversation_uuid: conversationId }
-    );
+    try {
+      // Use secure server-side RPC that marks messages read for this conversation
+      const { data, error } = await supabase.rpc("mark_conversation_read", {
+        conversation_uuid: conversationId,
+      });
 
-    if (error) {
-      // Keep silent-ish in UI (avoid noisy toasts), but log for debugging.
-      console.warn("mark_conversation_read failed", error);
-      return;
+      if (error) {
+        console.warn("mark_conversation_read failed", error);
+        return;
+      }
+
+      // data is number of rows updated; if >0, reflect in UI immediately
+      if ((data ?? 0) > 0) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.sender_id !== currentUserId ? { ...m, is_read: true } : m
+          )
+        );
+      }
+    } catch (err) {
+      console.warn("mark_conversation_read error", err);
     }
+  }, [currentUserId, conversationId]);
 
-    // data is number of rows updated; if >0, reflect in UI immediately
-    if ((data ?? 0) > 0) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.sender_id !== currentUserId ? { ...m, is_read: true } : m
-        )
-      );
+  // Also mark as read when user scrolls to bottom
+  const handleMessagesScrollWithRead = () => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const wasAtBottom = isAtBottomRef.current;
+    isAtBottomRef.current = distanceFromBottom < 80;
+    
+    // If user scrolled to bottom and wasn't there before, mark as read
+    if (isAtBottomRef.current && !wasAtBottom) {
+      markMessagesAsReadOnOpen();
     }
   };
 
@@ -999,7 +1009,7 @@ const Chat = () => {
         {/* Messages */}
         <div
           ref={messagesScrollRef}
-          onScroll={handleMessagesScroll}
+          onScroll={handleMessagesScrollWithRead}
           className="flex-1 overflow-y-auto p-4 space-y-4 pb-2"
         >
           {replyingTo && (
