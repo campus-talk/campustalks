@@ -163,19 +163,27 @@ const Chat = () => {
   // Mark all unread messages as read when chat opens (server-side update)
   const markMessagesAsReadOnOpen = async () => {
     if (!currentUserId || !conversationId) return;
-    
-    const { error } = await supabase
-      .from("messages")
-      .update({ is_read: true })
-      .eq("conversation_id", conversationId)
-      .neq("sender_id", currentUserId)
-      .eq("is_read", false);
-    
-    if (!error) {
-      // Update local state immediately for responsive UI
-      setMessages(prev => prev.map(m => 
-        m.sender_id !== currentUserId ? { ...m, is_read: true } : m
-      ));
+
+    // IMPORTANT: receivers cannot UPDATE messages directly due to RLS.
+    // Use a secure server-side RPC that only marks messages read for this conversation.
+    const { data, error } = await (supabase.rpc as any)(
+      "mark_conversation_read",
+      { conversation_uuid: conversationId }
+    );
+
+    if (error) {
+      // Keep silent-ish in UI (avoid noisy toasts), but log for debugging.
+      console.warn("mark_conversation_read failed", error);
+      return;
+    }
+
+    // data is number of rows updated; if >0, reflect in UI immediately
+    if ((data ?? 0) > 0) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.sender_id !== currentUserId ? { ...m, is_read: true } : m
+        )
+      );
     }
   };
 
