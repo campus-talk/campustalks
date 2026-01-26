@@ -7,19 +7,22 @@ import { lazy, Suspense, useEffect } from "react";
 import { useOneSignal } from "@/hooks/useOneSignal";
 import { supabase } from "@/integrations/supabase/client";
 
-// Lazy load pages for better performance
+// Persistent shell for main tabs - NOT lazy loaded
+import AppShell from "@/components/layout/AppShell";
+import ConversationsTab from "@/components/tabs/ConversationsTab";
+import GroupsTab from "@/components/tabs/GroupsTab";
+import CallsTab from "@/components/tabs/CallsTab";
+import SettingsTab from "@/components/tabs/SettingsTab";
+
+// Lazy load ONLY deep/secondary pages
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ProfileSetup = lazy(() => import("./pages/ProfileSetup"));
 const Home = lazy(() => import("./pages/Home"));
-const Conversations = lazy(() => import("./pages/Conversations"));
 const Chat = lazy(() => import("./pages/Chat"));
 const Search = lazy(() => import("./pages/Search"));
-const Settings = lazy(() => import("./pages/Settings"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Notifications = lazy(() => import("./pages/Notifications"));
-const Groups = lazy(() => import("./pages/Groups"));
-const Calls = lazy(() => import("./pages/Calls"));
 const AISettings = lazy(() => import("./pages/AISettings"));
 const MessageRequests = lazy(() => import("./pages/MessageRequests"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -45,7 +48,6 @@ const App = () => {
         console.log("Cleanup skipped");
       }
     };
-    // Defer cleanup to after page is interactive
     if ('requestIdleCallback' in window) {
       requestIdleCallback(() => cleanup(), { timeout: 5000 });
     } else {
@@ -59,26 +61,32 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Suspense fallback={<LoadingScreen />}>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/profile-setup" element={<ProfileSetup />} />
-              <Route path="/conversations" element={<Conversations />} />
-              <Route path="/home" element={<Home />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/profile/:userId" element={<Profile />} />
-              <Route path="/chat/:conversationId" element={<Chat />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/settings/ai" element={<AISettings />} />
-              <Route path="/groups" element={<Groups />} />
-              <Route path="/calls" element={<Calls />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/message-requests" element={<MessageRequests />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
+          <Routes>
+            {/* Public routes - lazy loaded with Suspense */}
+            <Route path="/" element={<Suspense fallback={<LoadingScreen />}><Index /></Suspense>} />
+            <Route path="/auth" element={<Suspense fallback={<LoadingScreen />}><Auth /></Suspense>} />
+            <Route path="/profile-setup" element={<Suspense fallback={<LoadingScreen />}><ProfileSetup /></Suspense>} />
+            <Route path="/home" element={<Suspense fallback={<LoadingScreen />}><Home /></Suspense>} />
+
+            {/* Main app shell with persistent tabs - NO lazy loading, NO Suspense */}
+            <Route element={<AppShell />}>
+              <Route path="/conversations" element={<ConversationsTab />} />
+              <Route path="/groups" element={<GroupsTab />} />
+              <Route path="/calls" element={<CallsTab />} />
+              <Route path="/settings" element={<SettingsTab />} />
+            </Route>
+
+            {/* Deep routes - lazy loaded */}
+            <Route path="/chat/:conversationId" element={<Suspense fallback={<LoadingScreen />}><Chat /></Suspense>} />
+            <Route path="/search" element={<Suspense fallback={<LoadingScreen />}><Search /></Suspense>} />
+            <Route path="/profile/:userId" element={<Suspense fallback={<LoadingScreen />}><Profile /></Suspense>} />
+            <Route path="/settings/ai" element={<Suspense fallback={<LoadingScreen />}><AISettings /></Suspense>} />
+            <Route path="/notifications" element={<Suspense fallback={<LoadingScreen />}><Notifications /></Suspense>} />
+            <Route path="/message-requests" element={<Suspense fallback={<LoadingScreen />}><MessageRequests /></Suspense>} />
+            
+            {/* Catch-all */}
+            <Route path="*" element={<Suspense fallback={<LoadingScreen />}><NotFound /></Suspense>} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
