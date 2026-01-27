@@ -120,29 +120,62 @@ interface AppState {
   
   // Refresh all data
   refreshAll: () => Promise<void>;
+  
+  // Offline cache
+  loadFromCache: () => void;
+  saveToCache: () => void;
 }
+
+// Cache key for localStorage
+const CACHE_KEY = "campustalks_cache";
 
 // Cache duration: 30 seconds (data is considered "stale" after this)
 const CACHE_DURATION = 30 * 1000;
 
+// Try to load initial state from localStorage for instant UI
+const getInitialState = () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const data = JSON.parse(cached);
+      return {
+        conversations: data.conversations || [],
+        groups: data.groups || [],
+        calls: data.calls || [],
+        totalUnreadMessages: data.totalUnreadMessages || 0,
+      };
+    }
+  } catch (e) {
+    // Ignore cache errors
+  }
+  return {
+    conversations: [],
+    groups: [],
+    calls: [],
+    totalUnreadMessages: 0,
+  };
+};
+
+const initialCachedState = getInitialState();
+
 export const useAppStore = create<AppState>((set, get) => ({
-  // Initial state
+  // Initial state - load from cache for instant UI
   currentUserId: '',
   currentUserProfile: null,
   
-  conversations: [],
+  conversations: initialCachedState.conversations,
   conversationsLoading: false,
   conversationsLastFetch: 0,
   
-  groups: [],
+  groups: initialCachedState.groups,
   groupsLoading: false,
   groupsLastFetch: 0,
   
-  calls: [],
+  calls: initialCachedState.calls,
   callsLoading: false,
   callsLastFetch: 0,
   
-  totalUnreadMessages: 0,
+  totalUnreadMessages: initialCachedState.totalUnreadMessages,
   unreadNotifications: 0,
   pendingRequests: 0,
   
@@ -494,5 +527,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       state.fetchCalls(true),
       state.fetchCounts(),
     ]);
+  },
+  
+  // Load cached data from localStorage for instant UI
+  loadFromCache: () => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        set({
+          conversations: data.conversations || [],
+          groups: data.groups || [],
+          calls: data.calls || [],
+          totalUnreadMessages: data.totalUnreadMessages || 0,
+        });
+      }
+    } catch (e) {
+      // Ignore cache errors
+    }
+  },
+  
+  // Save current state to localStorage for offline access
+  saveToCache: () => {
+    try {
+      const state = get();
+      const cacheData = {
+        conversations: state.conversations,
+        groups: state.groups,
+        calls: state.calls,
+        totalUnreadMessages: state.totalUnreadMessages,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+    } catch (e) {
+      // Ignore cache errors (e.g., quota exceeded)
+    }
   },
 }));

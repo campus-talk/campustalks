@@ -1,9 +1,11 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
 import { MessageSquare, Users, Phone, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/stores/appStore";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import SyncIndicator from "@/components/SyncIndicator";
 
 // Tab routes that use the persistent shell
 const TAB_ROUTES = ["/conversations", "/groups", "/calls", "/settings"];
@@ -12,6 +14,7 @@ const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const { isOnline, isSyncing, setSyncing } = useNetworkStatus();
   
   const {
     currentUserId,
@@ -21,12 +24,16 @@ const AppShell = () => {
     fetchCalls,
     fetchCurrentUserProfile,
     fetchCounts,
-    setCurrentUser,
+    loadFromCache,
+    saveToCache,
   } = useAppStore();
 
-  // Initialize user and data on mount
+  // Load cached data first, then fetch fresh (offline-first)
   useEffect(() => {
     const initializeApp = async () => {
+      // Load from localStorage immediately (instant UI)
+      loadFromCache();
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/auth");
@@ -36,17 +43,40 @@ const AppShell = () => {
       // Fetch user profile first
       await fetchCurrentUserProfile();
       
-      // Fetch all data in parallel (cache-first, won't refetch if fresh)
-      await Promise.all([
-        fetchConversations(),
-        fetchGroups(),
-        fetchCalls(),
-        fetchCounts(),
-      ]);
+      // Only fetch if online
+      if (navigator.onLine) {
+        setSyncing(true);
+        await Promise.all([
+          fetchConversations(),
+          fetchGroups(),
+          fetchCalls(),
+          fetchCounts(),
+        ]);
+        saveToCache();
+        setSyncing(false);
+      }
     };
     
     initializeApp();
   }, []);
+
+  // Re-sync when coming back online
+  useEffect(() => {
+    if (isOnline) {
+      const resync = async () => {
+        setSyncing(true);
+        await Promise.all([
+          fetchConversations(true),
+          fetchGroups(true),
+          fetchCalls(true),
+          fetchCounts(),
+        ]);
+        saveToCache();
+        setSyncing(false);
+      };
+      resync();
+    }
+  }, [isOnline]);
 
   // Global realtime subscription - lives at shell level, never recreated
   useEffect(() => {
@@ -59,7 +89,7 @@ const AppShell = () => {
         { event: "*", schema: "public", table: "messages" },
         () => {
           // Refresh conversations with force to update last messages & unreads
-          fetchConversations(true);
+          fetchConversations(true).then(() => saveToCache());
         }
       )
       .on(
@@ -82,14 +112,14 @@ const AppShell = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [fetchConversations, fetchCounts]);
+  }, [fetchConversations, fetchCounts, saveToCache]);
 
-  const navItems = [
+  const navItems = useMemo(() => [
     { icon: MessageSquare, label: "Chats", path: "/conversations", badge: totalUnreadMessages },
     { icon: Users, label: "Groups", path: "/groups", badge: 0 },
     { icon: Phone, label: "Calls", path: "/calls", badge: 0 },
     { icon: User, label: "Account", path: "/settings", badge: 0 },
-  ];
+  ], [totalUnreadMessages]);
 
   const handleTabClick = useCallback((path: string) => {
     // Use replace for tab switches to keep history clean
@@ -100,6 +130,9 @@ const AppShell = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Sync indicator - shows offline/syncing state */}
+      <SyncIndicator isOnline={isOnline} isSyncing={isSyncing} />
+      
       {/* Main content area - renders the current route */}
       <main className="flex-1 overflow-hidden">
         <Outlet />
