@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,11 +8,16 @@ import CreateGroupDialog from "@/components/CreateGroupDialog";
 import GroupSettings from "@/components/GroupSettings";
 import { useAppStore } from "@/stores/appStore";
 import { supabase } from "@/integrations/supabase/client";
+import { useScrollPosition } from "@/hooks/useScrollPosition";
 
-const GroupsTab = () => {
+const GroupsTab = memo(() => {
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  
+  // Preserve scroll position across tab switches
+  useScrollPosition('groups-tab', scrollRef);
 
   const {
     currentUserId,
@@ -111,7 +116,7 @@ const GroupsTab = () => {
       />
 
       {/* Groups List */}
-      <div className="max-w-7xl mx-auto p-4">
+      <div ref={scrollRef} className="max-w-7xl mx-auto p-4">
         {groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6">
             <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center mb-6">
@@ -179,6 +184,8 @@ const GroupsTab = () => {
       </div>
     </div>
   );
-};
+});
+
+GroupsTab.displayName = 'GroupsTab';
 
 export default GroupsTab;

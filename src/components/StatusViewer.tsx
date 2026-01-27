@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import StatusMediaRenderer from "./status/StatusMediaRenderer";
 
 interface Status {
   id: string;
@@ -55,7 +56,7 @@ const StatusViewer = ({
   const [viewers, setViewers] = useState<any[]>([]);
   const [showViewers, setShowViewers] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [isMediaLoaded, setIsMediaLoaded] = useState(false);
+  const [isMediaReady, setIsMediaReady] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [replyText, setReplyText] = useState("");
@@ -64,46 +65,12 @@ const StatusViewer = ({
   const progressInterval = useRef<NodeJS.Timeout | null>(null);
   const touchStartX = useRef<number>(0);
   const touchStartY = useRef<number>(0);
-  const preloadedImages = useRef<Map<string, boolean>>(new Map());
 
   const currentStatus = statuses[currentIndex];
   const isOwnStatus = currentStatus?.user_id === currentUserId;
   const isVideo = currentStatus?.media_type === "video";
   const isImage = currentStatus?.media_type === "image";
   const isText = currentStatus?.media_type === "text";
-
-  // Preload next images
-  useEffect(() => {
-    if (!open || !statuses.length) return;
-    
-    // Preload current and next 2 images
-    for (let i = currentIndex; i < Math.min(currentIndex + 3, statuses.length); i++) {
-      const status = statuses[i];
-      if (status?.media_url && status.media_type === "image" && !preloadedImages.current.has(status.media_url)) {
-        const img = new Image();
-        img.src = status.media_url;
-        img.onload = () => {
-          preloadedImages.current.set(status.media_url!, true);
-        };
-      }
-    }
-  }, [open, currentIndex, statuses]);
-
-  // Fast media load check - don't wait for full load
-  useEffect(() => {
-    if (isText) {
-      setIsMediaLoaded(true);
-    } else if (isImage && currentStatus?.media_url) {
-      // Check if already preloaded
-      if (preloadedImages.current.has(currentStatus.media_url)) {
-        setIsMediaLoaded(true);
-      } else {
-        setIsMediaLoaded(false);
-      }
-    } else {
-      setIsMediaLoaded(false);
-    }
-  }, [currentIndex, currentStatus?.id, isText, isImage, currentStatus?.media_url]);
 
   // Load like status
   useEffect(() => {
@@ -164,7 +131,7 @@ const StatusViewer = ({
     if (currentIndex < statuses.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setProgress(0);
-      setIsMediaLoaded(false);
+      setIsMediaReady(false);
     } else {
       if (allUserGroups && onUserChange) {
         const currentUserIndex = allUserGroups.findIndex(g => 
@@ -183,7 +150,7 @@ const StatusViewer = ({
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
       setProgress(0);
-      setIsMediaLoaded(false);
+      setIsMediaReady(false);
     } else {
       if (allUserGroups && onUserChange) {
         const currentUserIndex = allUserGroups.findIndex(g => 
@@ -197,16 +164,18 @@ const StatusViewer = ({
     }
   }, [currentIndex, allUserGroups, onUserChange, currentStatus?.id]);
 
+  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setCurrentIndex(initialIndex);
       setProgress(0);
       setShowViewers(false);
-      setIsMediaLoaded(false);
+      setIsMediaReady(false);
       setShowReplyInput(false);
     }
   }, [open, initialIndex]);
 
+  // Mark status as viewed
   useEffect(() => {
     const markAsViewed = async () => {
       if (!currentStatus || isOwnStatus) return;
@@ -215,9 +184,10 @@ const StatusViewer = ({
         { onConflict: "status_id,viewer_id" }
       );
     };
-    if (open && isMediaLoaded) markAsViewed();
-  }, [currentStatus, currentUserId, isOwnStatus, open, isMediaLoaded]);
+    if (open && isMediaReady) markAsViewed();
+  }, [currentStatus, currentUserId, isOwnStatus, open, isMediaReady]);
 
+  // Load viewers for own status
   useEffect(() => {
     const loadViewers = async () => {
       if (!currentStatus || !isOwnStatus) return;
@@ -230,12 +200,14 @@ const StatusViewer = ({
     if (open && isOwnStatus) loadViewers();
   }, [currentStatus, isOwnStatus, open]);
 
+  // Progress timer - only starts when media is ready
   useEffect(() => {
-    if (!open || isPaused || !isMediaLoaded || showReplyInput) {
+    if (!open || isPaused || !isMediaReady || showReplyInput) {
       if (progressInterval.current) clearInterval(progressInterval.current);
       return;
     }
 
+    // For videos, use video time progress
     if (isVideo && videoRef.current) {
       const video = videoRef.current;
       const updateProgress = () => {
@@ -253,6 +225,7 @@ const StatusViewer = ({
       };
     }
 
+    // For images/text, use fixed timer
     const startTime = Date.now();
     progressInterval.current = setInterval(() => {
       const elapsed = Date.now() - startTime;
@@ -264,7 +237,7 @@ const StatusViewer = ({
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [open, isPaused, goToNext, isVideo, currentIndex, isMediaLoaded, showReplyInput]);
+  }, [open, isPaused, goToNext, isVideo, currentIndex, isMediaReady, showReplyInput]);
 
   const handleDeleteStatus = async () => {
     if (!currentStatus) return;
@@ -316,17 +289,15 @@ const StatusViewer = ({
     }
   };
 
-  const handleImageLoad = () => {
-    setIsMediaLoaded(true);
-    if (currentStatus?.media_url) {
-      preloadedImages.current.set(currentStatus.media_url, true);
-    }
-  };
+  const handleMediaReady = useCallback(() => {
+    setIsMediaReady(true);
+  }, []);
 
-  const handleVideoLoaded = () => {
-    setIsMediaLoaded(true);
-    if (videoRef.current) videoRef.current.play().catch(() => {});
-  };
+  const handleMediaError = useCallback(() => {
+    // On error, still mark as "ready" but show error state
+    // This prevents infinite loading
+    setIsMediaReady(true);
+  }, []);
 
   if (!currentStatus) return null;
 
@@ -395,7 +366,7 @@ const StatusViewer = ({
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content with StatusMediaRenderer */}
         <div
           className={cn("w-full h-full flex items-center justify-center", isText && "p-6")}
           style={{ backgroundColor: isText ? currentStatus.background_color || "#667eea" : "#000" }}
@@ -403,37 +374,20 @@ const StatusViewer = ({
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          {isVideo && currentStatus.media_url ? (
-            <video
-              ref={videoRef}
-              src={currentStatus.media_url}
-              className="w-full h-full object-contain"
-              muted={isMuted}
-              playsInline
-              preload="auto"
-              onLoadedData={handleVideoLoaded}
-              onCanPlay={handleVideoLoaded}
-            />
-          ) : isImage && currentStatus.media_url ? (
-            <img
-              src={currentStatus.media_url}
-              alt="Status"
-              className="w-full h-full object-contain"
-              onLoad={handleImageLoad}
-              loading="eager"
-            />
-          ) : (
-            <motion.p
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-white text-xl sm:text-2xl font-medium text-center leading-relaxed px-4"
-            >
-              {currentStatus.content}
-            </motion.p>
-          )}
+          <StatusMediaRenderer
+            key={currentStatus.id} // Force remount on status change
+            mediaUrl={currentStatus.media_url}
+            mediaType={currentStatus.media_type as 'image' | 'video' | 'text'}
+            content={currentStatus.content}
+            backgroundColor={currentStatus.background_color}
+            onMediaReady={handleMediaReady}
+            onMediaError={handleMediaError}
+            isMuted={isMuted}
+            videoRef={videoRef}
+          />
           
           {/* Text overlay on image */}
-          {isImage && currentStatus.content && (
+          {isImage && currentStatus.content && isMediaReady && (
             <div className="absolute bottom-32 left-4 right-4 z-20">
               <p className="text-white text-lg font-medium text-center drop-shadow-lg bg-black/30 rounded-lg p-3">
                 {currentStatus.content}

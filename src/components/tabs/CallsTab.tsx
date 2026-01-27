@@ -1,18 +1,23 @@
-import { useEffect } from "react";
+import { useEffect, useRef, memo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { usePeerConnection } from "@/hooks/usePeerConnection";
 import { useAppStore } from "@/stores/appStore";
+import { useScrollPosition } from "@/hooks/useScrollPosition";
 
-const CallsTab = () => {
+const CallsTab = memo(() => {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const {
     currentUserId,
     calls,
     callsLoading,
     fetchCalls,
   } = useAppStore();
+
+  // Preserve scroll position across tab switches
+  useScrollPosition('calls-tab', scrollRef);
 
   const peerConnection = usePeerConnection(currentUserId);
 
@@ -92,7 +97,7 @@ const CallsTab = () => {
       </header>
 
       {/* Calls List */}
-      <div className="max-w-7xl mx-auto p-4">
+      <div ref={scrollRef} className="max-w-7xl mx-auto p-4">
         {calls.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6">
             <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center mb-6">
@@ -165,6 +170,8 @@ const CallsTab = () => {
       </div>
     </div>
   );
-};
+});
+
+CallsTab.displayName = 'CallsTab';
 
 export default CallsTab;
