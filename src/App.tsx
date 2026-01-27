@@ -29,9 +29,10 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
-const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center geometric-pattern">
-    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+// Minimal loading fallback - only for lazy routes, not full screen
+const LazyLoadFallback = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
   </div>
 );
 
@@ -62,11 +63,11 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public routes - lazy loaded with Suspense */}
-            <Route path="/" element={<Suspense fallback={<LoadingScreen />}><Index /></Suspense>} />
-            <Route path="/auth" element={<Suspense fallback={<LoadingScreen />}><Auth /></Suspense>} />
-            <Route path="/profile-setup" element={<Suspense fallback={<LoadingScreen />}><ProfileSetup /></Suspense>} />
-            <Route path="/home" element={<Suspense fallback={<LoadingScreen />}><Home /></Suspense>} />
+            {/* Public routes - lazy loaded with minimal fallback */}
+            <Route path="/" element={<Suspense fallback={<LazyLoadFallback />}><Index /></Suspense>} />
+            <Route path="/auth" element={<Suspense fallback={<LazyLoadFallback />}><Auth /></Suspense>} />
+            <Route path="/profile-setup" element={<Suspense fallback={<LazyLoadFallback />}><ProfileSetup /></Suspense>} />
+            <Route path="/home" element={<Suspense fallback={<LazyLoadFallback />}><Home /></Suspense>} />
 
             {/* Main app shell with persistent tabs - NO lazy loading, NO Suspense */}
             <Route element={<AppShell />}>
@@ -77,15 +78,15 @@ const App = () => {
             </Route>
 
             {/* Deep routes - lazy loaded */}
-            <Route path="/chat/:conversationId" element={<Suspense fallback={<LoadingScreen />}><Chat /></Suspense>} />
-            <Route path="/search" element={<Suspense fallback={<LoadingScreen />}><Search /></Suspense>} />
-            <Route path="/profile/:userId" element={<Suspense fallback={<LoadingScreen />}><Profile /></Suspense>} />
-            <Route path="/settings/ai" element={<Suspense fallback={<LoadingScreen />}><AISettings /></Suspense>} />
-            <Route path="/notifications" element={<Suspense fallback={<LoadingScreen />}><Notifications /></Suspense>} />
-            <Route path="/message-requests" element={<Suspense fallback={<LoadingScreen />}><MessageRequests /></Suspense>} />
+            <Route path="/chat/:conversationId" element={<Suspense fallback={<LazyLoadFallback />}><Chat /></Suspense>} />
+            <Route path="/search" element={<Suspense fallback={<LazyLoadFallback />}><Search /></Suspense>} />
+            <Route path="/profile/:userId" element={<Suspense fallback={<LazyLoadFallback />}><Profile /></Suspense>} />
+            <Route path="/settings/ai" element={<Suspense fallback={<LazyLoadFallback />}><AISettings /></Suspense>} />
+            <Route path="/notifications" element={<Suspense fallback={<LazyLoadFallback />}><Notifications /></Suspense>} />
+            <Route path="/message-requests" element={<Suspense fallback={<LazyLoadFallback />}><MessageRequests /></Suspense>} />
             
             {/* Catch-all */}
-            <Route path="*" element={<Suspense fallback={<LoadingScreen />}><NotFound /></Suspense>} />
+            <Route path="*" element={<Suspense fallback={<LazyLoadFallback />}><NotFound /></Suspense>} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

@@ -2,11 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Campus Talks" />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="msapplication-TileColor" content="#6366f1" />
     
     <!-- Preconnect to Supabase for faster API connections -->
     <link rel="preconnect" href="https://ptaugoubzjmfsicnhzoo.supabase.co" crossorigin>
     <link rel="dns-prefetch" href="https://ptaugoubzjmfsicnhzoo.supabase.co">
+    
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/favicon.ico" />
     
     <title>Campus Talks - College Messaging & Video Calling</title>
     <meta name="description" content="Campus Talks - A modern messaging app for college students with real-time chat, status updates, and video calling. Connect with your campus community." />
@@ -22,10 +33,47 @@
     <meta name="twitter:title" content="Campus Talks - College Messaging" />
     <meta name="twitter:description" content="A modern messaging app for college students with real-time chat and video calling" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    
+    <!-- Inline critical CSS to prevent white flash -->
+    <style>
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background: #0f0f23;
+      }
+      /* Initial skeleton placeholder */
+      .app-shell-skeleton {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        background: #0f0f23;
+      }
+      .skeleton-header {
+        height: 80px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      }
+      .skeleton-content {
+        flex: 1;
+        padding: 16px;
+      }
+      .skeleton-nav {
+        height: 64px;
+        background: #1a1a2e;
+        border-top: 1px solid #2a2a4a;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- App shell skeleton shown before React hydrates -->
+      <div class="app-shell-skeleton">
+        <div class="skeleton-header"></div>
+        <div class="skeleton-content"></div>
+        <div class="skeleton-nav"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
