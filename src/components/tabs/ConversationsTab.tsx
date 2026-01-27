@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppStore } from "@/stores/appStore";
+import { useScrollPosition } from "@/hooks/useScrollPosition";
 
-const ConversationsTab = () => {
+const ConversationsTab = memo(() => {
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  
+  // Preserve scroll position across tab switches
+  useScrollPosition('conversations-tab', scrollRef);
 
   const {
     currentUserId,
@@ -152,7 +157,7 @@ const ConversationsTab = () => {
       )}
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-4">
@@ -220,6 +225,8 @@ const ConversationsTab = () => {
       </div>
     </div>
   );
-};
+});
+
+ConversationsTab.displayName = 'ConversationsTab';
 
 export default ConversationsTab;

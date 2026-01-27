@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import BlockedUsersList from "@/components/BlockedUsersList";
 import UpdatePhoneDialog from "@/components/UpdatePhoneDialog";
 import { useAppStore } from "@/stores/appStore";
+import { useScrollPosition } from "@/hooks/useScrollPosition";
 
-const SettingsTab = () => {
+const SettingsTab = memo(() => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Preserve scroll position across tab switches
+  useScrollPosition('settings-tab', scrollRef);
   
   const { currentUserProfile, pendingRequests, fetchCounts } = useAppStore();
   
@@ -174,7 +179,7 @@ const SettingsTab = () => {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto p-6">
+      <div ref={scrollRef} className="max-w-2xl mx-auto p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -408,6 +413,8 @@ const SettingsTab = () => {
       />
     </div>
   );
-};
+});
+
+SettingsTab.displayName = 'SettingsTab';
 
 export default SettingsTab;

@@ -122,7 +122,7 @@ const CreateStatusDialog = ({
 
       if (mediaFile) {
         const fileExt = mediaFile.name.split(".").pop();
-        const fileName = `${userId}/${Date.now()}.${fileExt}`;
+        const fileName = `statuses/${userId}/${Date.now()}.${fileExt}`;
         
         const { error: uploadError } = await supabase.storage
           .from("chat-attachments")
@@ -130,6 +130,8 @@ const CreateStatusDialog = ({
 
         if (uploadError) throw uploadError;
 
+        // Store the public URL format - the StatusMediaRenderer will generate
+        // a signed URL on-demand since chat-attachments is a private bucket
         const { data: { publicUrl } } = supabase.storage
           .from("chat-attachments")
           .getPublicUrl(fileName);
