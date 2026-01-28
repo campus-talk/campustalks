@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { usePeerConnection } from "@/hooks/usePeerConnection";
+import { useJitsiCall } from "@/hooks/useJitsiCall";
 import { useAppStore } from "@/stores/appStore";
 import { useScrollPosition } from "@/hooks/useScrollPosition";
 
@@ -19,7 +19,7 @@ const CallsTab = memo(() => {
   // Preserve scroll position across tab switches
   useScrollPosition('calls-tab', scrollRef);
 
-  const peerConnection = usePeerConnection(currentUserId);
+  const { startCall, startAudioCall } = useJitsiCall(currentUserId);
 
   // Fetch data on mount (cache-first)
   useEffect(() => {
@@ -52,9 +52,9 @@ const CallsTab = memo(() => {
     const otherUserId = call.caller_id === currentUserId ? call.receiver_id : call.caller_id;
     
     if (call.call_type === "video") {
-      peerConnection.startCall(otherUserId, true);
+      startCall(otherUserId, true, call.conversation_id);
     } else {
-      peerConnection.startAudioCall(otherUserId);
+      startAudioCall(otherUserId, call.conversation_id);
     }
   };
 
