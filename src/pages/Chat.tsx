@@ -8,9 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
-import { usePeerConnection } from "@/hooks/usePeerConnection";
-import IncomingCallModal from "@/components/IncomingCallModal";
-import VideoCallScreen from "@/components/VideoCallScreen";
+import { useJitsiCall } from "@/hooks/useJitsiCall";
+import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
+import JitsiCallScreen from "@/components/JitsiCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
@@ -118,11 +118,11 @@ const Chat = () => {
     isMicOn,
     isVideoCall,
     isFrontCamera,
-    localStream,
-    remoteStream,
     incomingCall,
     isInCall,
-  } = usePeerConnection(currentUserId);
+    callConfig,
+    initializeJitsi,
+  } = useJitsiCall(currentUserId);
 
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
@@ -1003,28 +1003,24 @@ const Chat = () => {
       />
 
       {/* Incoming Call Modal */}
-      <IncomingCallModal
-        isOpen={!!incomingCall}
-        callerName={incomingCall?.callerName || ""}
-        callerAvatar={incomingCall?.callerAvatar || null}
+      <IncomingCallModalJitsi
+        incomingCall={incomingCall}
         onAccept={acceptCall}
         onDecline={declineCall}
       />
 
-      {/* Video Call Screen */}
+      {/* Jitsi Call Screen */}
       <AnimatePresence>
         {isInCall && (
-          <VideoCallScreen
-            localStream={localStream}
-            remoteStream={remoteStream}
+          <JitsiCallScreen
+            callConfig={callConfig}
             onEndCall={endCall}
             onToggleCamera={toggleCamera}
             onToggleMic={toggleMic}
-            onSwitchCamera={switchCamera}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}
-            isFrontCamera={isFrontCamera}
+            onInitialize={initializeJitsi}
           />
         )}
       </AnimatePresence>
