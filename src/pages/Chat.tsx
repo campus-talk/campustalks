@@ -43,6 +43,10 @@ interface Message {
   reactions?: Reaction[];
   reply_to?: string | null;
   deleted_for_everyone?: boolean;
+  // Optimistic UI fields
+  _isOptimistic?: boolean;
+  _isFailed?: boolean;
+  _tempId?: string;
 }
 
 interface CallLog {
@@ -377,12 +381,20 @@ const Chat = () => {
         async (payload) => {
           const incoming = { ...(payload.new as Message), reactions: [] };
 
-          const shouldAutoScroll =
-            incoming.sender_id === currentUserId || isAtBottomRef.current;
+          // SKIP messages from current user - we handle them optimistically
+          // This prevents duplicate messages in the UI
+          if (incoming.sender_id === currentUserId) {
+            return;
+          }
+
+          const shouldAutoScroll = isAtBottomRef.current;
 
           setMessages((prev) => {
-            const next = [...prev, incoming];
-            return next;
+            // Double-check to prevent duplicates
+            if (prev.some(m => m.id === incoming.id)) {
+              return prev;
+            }
+            return [...prev, incoming];
           });
 
           if (shouldAutoScroll) {
@@ -390,10 +402,8 @@ const Chat = () => {
           }
 
           // Generate smart replies for incoming messages
-          if (incoming.sender_id !== currentUserId) {
-            generateSmartRepliesForMessage(incoming);
-            handleAutoReply(incoming);
-          }
+          generateSmartRepliesForMessage(incoming);
+          handleAutoReply(incoming);
         }
       )
       .on(
@@ -433,6 +443,9 @@ const Chat = () => {
     };
   };
 
+  // Generate a temporary ID for optimistic messages
+  const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
   const handleSendMessage = async (e: React.FormEvent, forceMessage?: string) => {
     e.preventDefault();
     const messageToSend = forceMessage || newMessage.trim();
@@ -452,102 +465,174 @@ const Chat = () => {
       }
     }
 
+    // Generate temp ID for optimistic message
+    const tempId = generateTempId();
+    const optimisticMessage: Message = {
+      id: tempId,
+      content: messageToSend,
+      message_type: "text",
+      sender_id: currentUserId,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      reactions: [],
+      reply_to: replyingTo?.id || null,
+      _isOptimistic: true,
+      _tempId: tempId,
+    };
+
+    // INSTANTLY add to UI (optimistic update)
+    setMessages(prev => [...prev, optimisticMessage]);
+    
+    // Clear input immediately for snappy UX
+    const savedMessage = messageToSend;
+    const savedReplyTo = replyingTo;
+    setNewMessage("");
+    setReplyingTo(null);
+    
+    // Auto-scroll to bottom immediately
+    requestAnimationFrame(() => scrollToBottom("smooth"));
+
     setSending(true);
     try {
       const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
-        content: messageToSend,
+        content: savedMessage,
         message_type: "text",
-        reply_to: replyingTo?.id || null,
+        reply_to: savedReplyTo?.id || null,
       }).select().single();
 
       if (error) throw error;
 
-      // Get sender profile for notification
-      const { data: senderProfile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", currentUserId)
-        .single();
+      // RECONCILE: Replace optimistic message with real one
+      setMessages(prev => prev.map(m => 
+        m._tempId === tempId 
+          ? { ...messageData, reactions: [], _isOptimistic: false, _tempId: undefined, _isFailed: undefined }
+          : m
+      ));
 
-      // Create notification for the receiver
-      if (!isGroupChat && otherUser) {
-        await supabase.from("notifications").insert({
-          user_id: otherUser.id,
-          type: "message",
-          title: senderProfile?.full_name || "New message",
-          body: messageToSend.substring(0, 100),
-          sender_id: currentUserId,
-          conversation_id: conversationId,
-          message_id: messageData?.id,
-        });
-
-        // Send push notification via OneSignal
+      // Background tasks: notifications (don't block UI)
+      (async () => {
         try {
-          await supabase.functions.invoke("send-push-notification", {
-            body: {
+          const { data: senderProfile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", currentUserId)
+            .single();
+
+          if (!isGroupChat && otherUser) {
+            await supabase.from("notifications").insert({
+              user_id: otherUser.id,
               type: "message",
-              recipientIds: [otherUser.id],
-              senderId: currentUserId,
-              senderName: senderProfile?.full_name || "Someone",
-              content: messageToSend.substring(0, 100),
-              conversationId: conversationId,
-            },
-          });
-        } catch (pushError) {
-          console.log("Push notification failed (non-critical):", pushError);
-        }
-      } else if (isGroupChat && groupId) {
-        // For group chat, notify all members except sender
-        const { data: members } = await supabase
-          .from("group_members")
-          .select("user_id")
-          .eq("group_id", groupId)
-          .neq("user_id", currentUserId);
+              title: senderProfile?.full_name || "New message",
+              body: savedMessage.substring(0, 100),
+              sender_id: currentUserId,
+              conversation_id: conversationId,
+              message_id: messageData?.id,
+            });
 
-        if (members && members.length > 0) {
-          const notifications = members.map(m => ({
-            user_id: m.user_id,
-            type: "message",
-            title: `${senderProfile?.full_name} in ${otherUser?.full_name}`,
-            body: messageToSend.substring(0, 100),
-            sender_id: currentUserId,
-            conversation_id: conversationId,
-            message_id: messageData?.id,
-          }));
-
-          await supabase.from("notifications").insert(notifications);
-
-          // Send push notification to group members via OneSignal
-          try {
-            await supabase.functions.invoke("send-push-notification", {
+            supabase.functions.invoke("send-push-notification", {
               body: {
-                type: "group_message",
-                recipientIds: members.map(m => m.user_id),
+                type: "message",
+                recipientIds: [otherUser.id],
                 senderId: currentUserId,
                 senderName: senderProfile?.full_name || "Someone",
-                content: messageToSend.substring(0, 100),
+                content: savedMessage.substring(0, 100),
                 conversationId: conversationId,
-                groupName: otherUser?.full_name,
               },
-            });
-          } catch (pushError) {
-            console.log("Push notification failed (non-critical):", pushError);
-          }
-        }
-      }
+            }).catch(() => {});
+          } else if (isGroupChat && groupId) {
+            const { data: members } = await supabase
+              .from("group_members")
+              .select("user_id")
+              .eq("group_id", groupId)
+              .neq("user_id", currentUserId);
 
-      setNewMessage("");
-      setReplyingTo(null);
+            if (members && members.length > 0) {
+              const notifications = members.map(m => ({
+                user_id: m.user_id,
+                type: "message",
+                title: `${senderProfile?.full_name} in ${otherUser?.full_name}`,
+                body: savedMessage.substring(0, 100),
+                sender_id: currentUserId,
+                conversation_id: conversationId,
+                message_id: messageData?.id,
+              }));
+
+              await supabase.from("notifications").insert(notifications);
+
+              supabase.functions.invoke("send-push-notification", {
+                body: {
+                  type: "group_message",
+                  recipientIds: members.map(m => m.user_id),
+                  senderId: currentUserId,
+                  senderName: senderProfile?.full_name || "Someone",
+                  content: savedMessage.substring(0, 100),
+                  conversationId: conversationId,
+                  groupName: otherUser?.full_name,
+                },
+              }).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.log("Background notification error (non-critical):", e);
+        }
+      })();
+
     } catch (error: any) {
+      // MARK AS FAILED - allow retry
+      setMessages(prev => prev.map(m => 
+        m._tempId === tempId 
+          ? { ...m, _isFailed: true }
+          : m
+      ));
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message,
+        title: "Failed to send",
+        description: "Tap message to retry",
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  // Retry sending a failed message
+  const handleRetryMessage = async (tempId: string) => {
+    const failedMessage = messages.find(m => m._tempId === tempId && m._isFailed);
+    if (!failedMessage) return;
+
+    // Mark as sending again
+    setMessages(prev => prev.map(m => 
+      m._tempId === tempId ? { ...m, _isFailed: false } : m
+    ));
+
+    try {
+      const { data: messageData, error } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: currentUserId,
+        content: failedMessage.content,
+        message_type: failedMessage.message_type,
+        reply_to: failedMessage.reply_to || null,
+      }).select().single();
+
+      if (error) throw error;
+
+      // Reconcile with real message
+      setMessages(prev => prev.map(m => 
+        m._tempId === tempId 
+          ? { ...messageData, reactions: [], _isOptimistic: false, _tempId: undefined, _isFailed: undefined }
+          : m
+      ));
+    } catch (error) {
+      // Mark as failed again
+      setMessages(prev => prev.map(m => 
+        m._tempId === tempId ? { ...m, _isFailed: true } : m
+      ));
+      toast({
+        variant: "destructive",
+        title: "Failed to send",
+        description: "Tap message to retry",
+      });
     }
   };
 
@@ -1145,11 +1230,18 @@ const Chat = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex ${isSent ? "justify-end" : "justify-start"} mb-4 group`}
-                    onContextMenu={(e) => handleLongPress(e, message)}
+                    onContextMenu={(e) => !message._isFailed && handleLongPress(e, message)}
                     onTouchStart={(e) => {
+                      if (message._isFailed) return;
                       const timer = setTimeout(() => handleLongPress(e, message), 500);
                       const handler = () => clearTimeout(timer);
                       e.currentTarget.addEventListener('touchend', handler, { once: true });
+                    }}
+                    onClick={() => {
+                      // Allow retry on failed messages
+                      if (message._isFailed && message._tempId) {
+                        handleRetryMessage(message._tempId);
+                      }
                     }}
                   >
                     <div className={`max-w-[70%] ${isSent ? "" : "flex items-start gap-2"}`}>
@@ -1166,9 +1258,11 @@ const Chat = () => {
                         <div
                           className={`rounded-2xl px-4 py-3 ${
                             isSent
-                              ? "chat-bubble-sent text-white rounded-br-sm"
+                              ? message._isFailed 
+                                ? "bg-destructive/80 text-white rounded-br-sm"
+                                : "chat-bubble-sent text-white rounded-br-sm"
                               : "chat-bubble-received text-foreground rounded-bl-sm"
-                          }`}
+                          } ${message._isOptimistic && !message._isFailed ? "opacity-80" : ""}`}
                         >
                           {message.deleted_for_everyone ? (
                             <p className="italic text-muted-foreground">This message was deleted</p>
@@ -1192,7 +1286,11 @@ const Chat = () => {
                               })}
                             </span>
                             {isSent && (
-                              message.is_read ? (
+                              message._isFailed ? (
+                                <span className="text-white font-medium">⚠ Tap to retry</span>
+                              ) : message._isOptimistic ? (
+                                <Clock className="w-4 h-4 animate-pulse" />
+                              ) : message.is_read ? (
                                 <CheckCheck className="w-4 h-4 text-blue-300" />
                               ) : (
                                 <Check className="w-4 h-4" />
@@ -1224,10 +1322,12 @@ const Chat = () => {
                           </div>
                         )}
 
-                        {/* Emoji Picker - Shows on hover */}
-                        <div className={`absolute top-0 ${isSent ? "left-0 -translate-x-full -ml-2" : "right-0 translate-x-full mr-2"}`}>
-                          <EmojiPicker onEmojiSelect={(emoji) => handleReaction(message.id, emoji)} />
-                        </div>
+                        {/* Emoji Picker - Shows on hover (not for failed messages) */}
+                        {!message._isFailed && (
+                          <div className={`absolute top-0 ${isSent ? "left-0 -translate-x-full -ml-2" : "right-0 translate-x-full mr-2"}`}>
+                            <EmojiPicker onEmojiSelect={(emoji) => handleReaction(message.id, emoji)} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </motion.div>
