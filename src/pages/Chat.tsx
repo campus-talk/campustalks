@@ -113,14 +113,18 @@ const Chat = () => {
     endCall,
     toggleCamera,
     toggleMic,
+    toggleScreenShare,
     switchCamera,
     isCameraOn,
     isMicOn,
     isVideoCall,
+    isScreenSharing,
     isFrontCamera,
     incomingCall,
     isInCall,
+    callState,
     callConfig,
+    formattedDuration,
     initializeJitsi,
   } = useJitsiCall(currentUserId);
 
@@ -1014,12 +1018,16 @@ const Chat = () => {
         {isInCall && (
           <JitsiCallScreen
             callConfig={callConfig}
+            callState={callState}
             onEndCall={endCall}
             onToggleCamera={toggleCamera}
             onToggleMic={toggleMic}
+            onToggleScreenShare={toggleScreenShare}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}
+            isScreenSharing={isScreenSharing}
+            formattedDuration={formattedDuration}
             onInitialize={initializeJitsi}
           />
         )}

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_calls: {
+        Row: {
+          call_type: string
+          conversation_id: string
+          created_at: string
+          id: string
+          initiated_by: string
+          is_active: boolean
+          participant_count: number
+          room_name: string
+          started_at: string
+        }
+        Insert: {
+          call_type?: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          initiated_by: string
+          is_active?: boolean
+          participant_count?: number
+          room_name: string
+          started_at?: string
+        }
+        Update: {
+          call_type?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          initiated_by?: string
+          is_active?: boolean
+          participant_count?: number
+          room_name?: string
+          started_at?: string
+        }
+        Relationships: []
+      }
       ai_settings: {
         Row: {
           ai_about_me: string | null
@@ -143,6 +179,41 @@ export type Database = {
             columns: ["receiver_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_participants: {
+        Row: {
+          call_id: string
+          id: string
+          is_screen_sharing: boolean
+          joined_at: string
+          left_at: string | null
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          id?: string
+          is_screen_sharing?: boolean
+          joined_at?: string
+          left_at?: string | null
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          id?: string
+          is_screen_sharing?: boolean
+          joined_at?: string
+          left_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "active_calls"
             referencedColumns: ["id"]
           },
         ]
