@@ -84,23 +84,44 @@ export const useJitsiCall = (currentUserId: string) => {
     };
   }, []);
 
-  // Load Jitsi script
+  // Check if Jitsi is preloaded (loaded in AppShell)
   useEffect(() => {
-    if (window.JitsiMeetExternalAPI) {
-      setJitsiReady(true);
-      return;
-    }
+    const checkJitsiReady = () => {
+      if (window.JitsiMeetExternalAPI) {
+        setJitsiReady(true);
+        return true;
+      }
+      return false;
+    };
 
-    const script = document.createElement('script');
-    script.src = 'https://meet.jit.si/external_api.js';
-    script.async = true;
-    script.onload = () => setJitsiReady(true);
-    document.body.appendChild(script);
+    // Check immediately
+    if (checkJitsiReady()) return;
+
+    // Poll for Jitsi availability (in case preload is still loading)
+    const interval = setInterval(() => {
+      if (checkJitsiReady()) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    // Fallback: load script if not available after 2 seconds
+    const fallbackTimeout = setTimeout(() => {
+      if (!window.JitsiMeetExternalAPI) {
+        const existingScript = document.getElementById('jitsi-api-script');
+        if (!existingScript) {
+          const script = document.createElement('script');
+          script.id = 'jitsi-api-script';
+          script.src = 'https://meet.jit.si/external_api.js';
+          script.async = true;
+          script.onload = () => setJitsiReady(true);
+          document.head.appendChild(script);
+        }
+      }
+    }, 2000);
 
     return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
+      clearInterval(interval);
+      clearTimeout(fallbackTimeout);
     };
   }, []);
 
@@ -369,6 +390,48 @@ export const useJitsiCall = (currentUserId: string) => {
     setIncomingCall(null);
   }, []);
 
+  // Join an existing active call (used when clicking "Join ongoing call" banner)
+  const joinCall = useCallback(async (
+    roomName: string,
+    isVideo: boolean,
+    conversationId: string,
+    callId?: string
+  ) => {
+    // Get current user's profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('id', currentUserId)
+      .single();
+
+    // INSTANT STATE CHANGE - Show call screen immediately
+    setCallState('connecting');
+    setIsVideoCall(isVideo);
+    setIsCameraOn(isVideo);
+    setIsMicOn(true);
+    setIsInCall(true);
+    setCallDuration(0);
+
+    setCallConfig({
+      roomName,
+      displayName: profile?.full_name || 'User',
+      avatarUrl: profile?.avatar_url || undefined,
+      isVideoCall: isVideo,
+      conversationId,
+      isGroup: true,
+      callId,
+    });
+
+    // Join as participant
+    if (callId) {
+      activeCallIdRef.current = callId;
+      await supabase.from('call_participants').insert({
+        call_id: callId,
+        user_id: currentUserId,
+      });
+    }
+  }, [currentUserId]);
+
   const endCall = useCallback(async () => {
     clearCallTimeout();
     stopRingtones();
@@ -516,7 +579,7 @@ export const useJitsiCall = (currentUserId: string) => {
 
     containerRef.current = container;
 
-    // Jitsi config - COMPLETELY HIDE DEFAULT UI
+    // Jitsi config - COMPLETELY HIDE DEFAULT UI + DISABLE LOBBY/MODERATOR
     const options = {
       roomName: callConfig.roomName,
       parentNode: container,
@@ -526,20 +589,38 @@ export const useJitsiCall = (currentUserId: string) => {
         displayName: callConfig.displayName,
         avatarURL: callConfig.avatarUrl,
       },
+      jwt: undefined, // No JWT = no auth required
       configOverwrite: {
-        // Disable all pre-join
+        // CRITICAL: Disable lobby and moderator requirements
+        enableLobby: false,
+        lobbyModeEnabled: false,
         prejoinPageEnabled: false,
         enableWelcomePage: false,
         enableClosePage: false,
+        requireDisplayName: false,
+        
+        // Disable all auth/moderator features
+        disableModeratorIndicator: true,
+        enableInsecureRoomNameWarning: false,
+        enableNoisyMicDetection: false,
         
         // Start state
         startWithAudioMuted: !isMicOn,
         startWithVideoMuted: !callConfig.isVideoCall || !isCameraOn,
         
-        // Disable UI elements
+        // Auto-join without any prompts
+        disableInitialGUM: false,
+        startSilent: false,
+        
+        // Disable UI elements completely
         disableDeepLinking: true,
         disableThirdPartyRequests: true,
         disableInviteFunctions: true,
+        disablePolls: true,
+        disableReactions: true,
+        disableReactionsModeration: true,
+        disableSelfView: false,
+        disableSelfViewSettings: true,
         
         // Quality settings for low bandwidth
         resolution: 720,
@@ -552,7 +633,7 @@ export const useJitsiCall = (currentUserId: string) => {
         enableLayerSuspension: true,
         channelLastN: 4,
         
-        // P2P for 1-on-1 calls
+        // P2P for 1-on-1 calls (faster, lower latency)
         p2p: {
           enabled: true,
           stunServers: [
@@ -561,29 +642,38 @@ export const useJitsiCall = (currentUserId: string) => {
           ],
         },
         
-        // Disable notifications
+        // Disable all notifications
         disableJoinLeaveNotifications: true,
-        disableModeratorIndicator: true,
+        notifications: [],
         
-        // Other
+        // Other UI hiding
         hideConferenceSubject: true,
         hideConferenceTimer: true,
         hideRecordingLabel: true,
         hideLobbyButton: true,
-        requireDisplayName: false,
+        hideDisplayName: false,
+        
+        // Disable all extras
+        enableCalendarIntegration: false,
+        enableEmailInStats: false,
+        disableSpeakerStatsSearch: true,
+        speakerStatsOrder: [],
       },
       interfaceConfigOverwrite: {
-        // HIDE ALL TOOLBAR BUTTONS - We use custom controls
+        // HIDE ALL TOOLBAR BUTTONS - We use custom controls ONLY
         TOOLBAR_BUTTONS: [],
         TOOLBAR_ALWAYS_VISIBLE: false,
+        INITIAL_TOOLBAR_TIMEOUT: 0,
+        TOOLBAR_TIMEOUT: 0,
         
-        // Hide all UI elements
+        // Hide all Jitsi branding/UI elements
         SHOW_JITSI_WATERMARK: false,
         SHOW_WATERMARK_FOR_GUESTS: false,
         SHOW_BRAND_WATERMARK: false,
         BRAND_WATERMARK_LINK: '',
         SHOW_POWERED_BY: false,
         SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+        SHOW_CHROME_EXTENSION_BANNER: false,
         
         // UI settings
         DEFAULT_BACKGROUND: '#0f0f23',
@@ -594,20 +684,26 @@ export const useJitsiCall = (currentUserId: string) => {
         DISABLE_PRESENCE_STATUS: true,
         DISABLE_FOCUS_INDICATOR: true,
         
-        // Film strip
+        // Hide filmstrip controls
         FILM_STRIP_MAX_HEIGHT: 100,
         VERTICAL_FILMSTRIP: false,
         filmStripOnly: false,
         
-        // Hide everything
+        // Disable settings access
         SETTINGS_SECTIONS: [],
+        
+        // Video layout
         VIDEO_LAYOUT_FIT: 'both',
         TILE_VIEW_MAX_COLUMNS: 2,
         
-        // No notifications
+        // Disable all indicators
         DISABLE_DOMINANT_SPEAKER_INDICATOR: true,
         DISABLE_TRANSCRIPTION_SUBTITLES: true,
         DISABLE_RINGING: true,
+        
+        // No feedback
+        ENABLE_FEEDBACK_ANIMATION: false,
+        DISABLE_FEEDBACK: true,
       },
     };
 
@@ -713,6 +809,7 @@ export const useJitsiCall = (currentUserId: string) => {
     // Actions
     startCall,
     startAudioCall,
+    joinCall,
     acceptCall,
     declineCall,
     endCall,
