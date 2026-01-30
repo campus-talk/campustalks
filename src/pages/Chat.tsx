@@ -23,6 +23,7 @@ import SuspiciousMessageWarning from "@/components/SuspiciousMessageWarning";
 import ReminderSuggestion from "@/components/ReminderSuggestion";
 import DateSeparator from "@/components/DateSeparator";
 import ChatUserProfile from "@/components/ChatUserProfile";
+import ActiveCallBanner from "@/components/ActiveCallBanner";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
 import { format, isSameDay } from "date-fns";
@@ -74,6 +75,7 @@ const Chat = () => {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
   const [sending, setSending] = useState(false);
+  const [activeCall, setActiveCall] = useState<{ id: string; call_type: string; participant_count: number; room_name: string } | null>(null);
 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -108,6 +110,7 @@ const Chat = () => {
   const {
     startCall,
     startAudioCall,
+    joinCall,
     acceptCall,
     declineCall,
     endCall,
@@ -140,6 +143,43 @@ const Chat = () => {
       markMessagesAsReadOnOpen();
     }
   }, [currentUserId, conversationId]);
+
+  // Check for active calls in this conversation
+  useEffect(() => {
+    if (!conversationId || isInCall) return;
+
+    const checkActiveCall = async () => {
+      const { data } = await supabase
+        .from('active_calls')
+        .select('id, call_type, participant_count, room_name')
+        .eq('conversation_id', conversationId)
+        .eq('is_active', true)
+        .single();
+
+      setActiveCall(data);
+    };
+
+    checkActiveCall();
+
+    // Subscribe to active call changes
+    const channel = supabase
+      .channel(`active_calls:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_calls',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => checkActiveCall()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId, isInCall]);
 
   // Initial auto-scroll only (do not force scroll when user is reading older messages)
   useEffect(() => {
@@ -1094,6 +1134,25 @@ const Chat = () => {
           </div>
         </header>
 
+        {/* Active Call Banner - WhatsApp style */}
+        <AnimatePresence>
+          {activeCall && !isInCall && (
+            <ActiveCallBanner
+              callType={activeCall.call_type === 'video' ? 'video' : 'audio'}
+              participantCount={activeCall.participant_count}
+              onJoin={() => {
+                if (conversationId) {
+                  joinCall(
+                    activeCall.room_name,
+                    activeCall.call_type === 'video',
+                    conversationId,
+                    activeCall.id
+                  );
+                }
+              }}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Messages */}
         <div

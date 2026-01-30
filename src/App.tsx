@@ -7,6 +7,17 @@ import { lazy, Suspense, useEffect } from "react";
 import { useOneSignal } from "@/hooks/useOneSignal";
 import { supabase } from "@/integrations/supabase/client";
 
+// PRELOAD JITSI SCRIPT IMMEDIATELY ON APP LOAD
+// This ensures Jitsi is ready before user clicks any call button
+if (typeof window !== 'undefined' && !document.getElementById('jitsi-api-script')) {
+  const script = document.createElement('script');
+  script.id = 'jitsi-api-script';
+  script.src = 'https://meet.jit.si/external_api.js';
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
 // Persistent shell for main tabs - NOT lazy loaded
 import AppShell from "@/components/layout/AppShell";
 import ConversationsTab from "@/components/tabs/ConversationsTab";
