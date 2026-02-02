@@ -9,7 +9,6 @@ import {
   Monitor,
   MonitorOff,
   Users,
-  MoreVertical,
   Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,10 +56,11 @@ const JitsiCallScreen = memo(({
   const initializedRef = useRef(false);
   const [showControls, setShowControls] = useState(true);
 
+  // Initialize Jitsi ONLY when call is accepted
   useEffect(() => {
-    if (containerRef.current && callConfig && !initializedRef.current) {
+    if (containerRef.current && callConfig && callState === 'accepted' && !initializedRef.current) {
       initializedRef.current = true;
-      // Small delay to ensure container is ready
+      console.log('🎥 JitsiCallScreen: Initializing Jitsi (call accepted)');
       setTimeout(() => {
         if (containerRef.current) {
           onInitialize(containerRef.current);
@@ -68,14 +68,15 @@ const JitsiCallScreen = memo(({
       }, 100);
     }
 
-    return () => {
+    // Reset flag when call ends
+    if (callState === 'idle' || callState === 'ended') {
       initializedRef.current = false;
-    };
-  }, [callConfig, onInitialize]);
+    }
+  }, [callConfig, callState, onInitialize]);
 
-  // Auto-hide controls after 5 seconds
+  // Auto-hide controls after 5 seconds when connected
   useEffect(() => {
-    if (callState === 'connected') {
+    if (callState === 'accepted') {
       const timer = setTimeout(() => setShowControls(false), 5000);
       return () => clearTimeout(timer);
     }
@@ -84,14 +85,14 @@ const JitsiCallScreen = memo(({
 
   if (!callConfig) return null;
 
-  const isConnecting = callState === 'calling' || callState === 'ringing' || callState === 'connecting';
+  // Show waiting UI for calling/ringing states
+  const isWaitingForAnswer = callState === 'calling' || callState === 'ringing';
 
   const getCallStatusText = () => {
     switch (callState) {
       case 'calling': return 'Calling...';
       case 'ringing': return 'Ringing...';
-      case 'connecting': return 'Connecting...';
-      case 'connected': return formattedDuration;
+      case 'accepted': return formattedDuration || 'Connecting...';
       default: return '';
     }
   };
@@ -104,9 +105,9 @@ const JitsiCallScreen = memo(({
       className="fixed inset-0 bg-[#0f0f23] z-50 flex flex-col"
       onClick={() => setShowControls(true)}
     >
-      {/* Optimistic UI - Show calling screen immediately */}
+      {/* Waiting UI - Shown before call is accepted */}
       <AnimatePresence>
-        {isConnecting && (
+        {isWaitingForAnswer && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -140,9 +141,7 @@ const JitsiCallScreen = memo(({
               {callConfig.displayName}
             </h2>
             <div className="flex items-center gap-2 text-white/70">
-              {callState === 'connecting' && (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              )}
+              <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-lg">{getCallStatusText()}</span>
             </div>
 
@@ -157,20 +156,32 @@ const JitsiCallScreen = memo(({
                 {isVideoCall ? 'Video Call' : 'Voice Call'}
               </span>
             </div>
+
+            {/* End call button during waiting */}
+            <div className="mt-12">
+              <Button
+                onClick={onEndCall}
+                size="lg"
+                variant="destructive"
+                className="rounded-full w-16 h-16 p-0 shadow-lg shadow-destructive/40"
+              >
+                <PhoneOff className="w-7 h-7" />
+              </Button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Jitsi Container - Hidden infrastructure */}
+      {/* Jitsi Container - Only visible after accepted */}
       <div 
         ref={containerRef}
-        className={`flex-1 w-full ${isConnecting ? 'opacity-0' : 'opacity-100'}`}
+        className={`flex-1 w-full transition-opacity duration-300 ${isWaitingForAnswer ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{ minHeight: '70vh' }}
       />
 
-      {/* Custom Controls Overlay */}
+      {/* Custom Controls Overlay - Only after accepted */}
       <AnimatePresence>
-        {(showControls || isConnecting) && (
+        {(showControls && callState === 'accepted') && (
           <motion.div 
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -178,18 +189,16 @@ const JitsiCallScreen = memo(({
             transition={{ type: 'spring', damping: 25 }}
             className="absolute bottom-0 left-0 right-0 pb-10 pt-20 px-4 bg-gradient-to-t from-black/95 via-black/70 to-transparent"
           >
-            {/* Call duration when connected */}
-            {callState === 'connected' && (
-              <div className="text-center mb-6">
-                <span className="text-white/80 text-sm font-medium bg-white/10 px-3 py-1 rounded-full">
-                  {formattedDuration}
-                </span>
-              </div>
-            )}
+            {/* Call duration */}
+            <div className="text-center mb-6">
+              <span className="text-white/80 text-sm font-medium bg-white/10 px-3 py-1 rounded-full">
+                {formattedDuration}
+              </span>
+            </div>
 
             {/* Control buttons */}
             <div className="flex items-center justify-center gap-4 max-w-md mx-auto">
-              {/* Screen share - desktop only */}
+              {/* Screen share */}
               <Button
                 onClick={onToggleScreenShare}
                 size="lg"
@@ -201,14 +210,10 @@ const JitsiCallScreen = memo(({
                 }`}
                 title="Share Screen"
               >
-                {isScreenSharing ? (
-                  <MonitorOff className="w-6 h-6" />
-                ) : (
-                  <Monitor className="w-6 h-6" />
-                )}
+                {isScreenSharing ? <MonitorOff className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
               </Button>
 
-              {/* Camera toggle - only for video calls */}
+              {/* Camera toggle - video calls only */}
               {isVideoCall && (
                 <Button
                   onClick={onToggleCamera}
@@ -220,11 +225,7 @@ const JitsiCallScreen = memo(({
                       : 'bg-destructive hover:bg-destructive/90 text-white'
                   }`}
                 >
-                  {isCameraOn ? (
-                    <Video className="w-6 h-6" />
-                  ) : (
-                    <VideoOff className="w-6 h-6" />
-                  )}
+                  {isCameraOn ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
                 </Button>
               )}
               
@@ -239,14 +240,10 @@ const JitsiCallScreen = memo(({
                     : 'bg-destructive hover:bg-destructive/90 text-white'
                 }`}
               >
-                {isMicOn ? (
-                  <Mic className="w-6 h-6" />
-                ) : (
-                  <MicOff className="w-6 h-6" />
-                )}
+                {isMicOn ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
               </Button>
 
-              {/* End call - prominent */}
+              {/* End call */}
               <Button
                 onClick={onEndCall}
                 size="lg"
@@ -256,7 +253,7 @@ const JitsiCallScreen = memo(({
                 <PhoneOff className="w-7 h-7" />
               </Button>
 
-              {/* Invite users - for group calls */}
+              {/* Invite users - group calls */}
               {callConfig.isGroup && onInvite && (
                 <Button
                   onClick={onInvite}

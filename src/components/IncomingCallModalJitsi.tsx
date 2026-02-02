@@ -1,24 +1,52 @@
+import { memo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, Video, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
+interface IncomingCallData {
+  callId: string;
+  callerId: string;
+  callerName: string;
+  callerAvatar: string | null;
+  roomName: string;
+  isVideo: boolean;
+  conversationId: string;
+}
+
 interface IncomingCallModalJitsiProps {
-  incomingCall: {
-    callerId: string;
-    callerName: string;
-    callerAvatar: string | null;
-    isVideo: boolean;
-  } | null;
+  incomingCall: IncomingCallData | null;
   onAccept: () => void;
   onDecline: () => void;
 }
 
-const IncomingCallModalJitsi = ({
+const IncomingCallModalJitsi = memo(({
   incomingCall,
   onAccept,
   onDecline,
 }: IncomingCallModalJitsiProps) => {
+  const hasVibratedRef = useRef(false);
+
+  // Vibrate on mobile when call comes in
+  useEffect(() => {
+    if (incomingCall && !hasVibratedRef.current) {
+      hasVibratedRef.current = true;
+      if ('vibrate' in navigator) {
+        // Vibrate pattern: vibrate 500ms, pause 200ms, repeat
+        const pattern = [500, 200, 500, 200, 500, 200, 500];
+        navigator.vibrate(pattern);
+      }
+    }
+
+    if (!incomingCall) {
+      hasVibratedRef.current = false;
+      // Stop vibration when call ends
+      if ('vibrate' in navigator) {
+        navigator.vibrate(0);
+      }
+    }
+  }, [incomingCall]);
+
   if (!incomingCall) return null;
 
   return (
@@ -139,6 +167,8 @@ const IncomingCallModalJitsi = ({
       </motion.div>
     </AnimatePresence>
   );
-};
+});
+
+IncomingCallModalJitsi.displayName = 'IncomingCallModalJitsi';
 
 export default IncomingCallModalJitsi;
