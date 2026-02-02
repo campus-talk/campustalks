@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       active_calls: {
         Row: {
+          call_state: string
           call_type: string
           conversation_id: string
           created_at: string
@@ -23,10 +24,12 @@ export type Database = {
           initiated_by: string
           is_active: boolean
           participant_count: number
+          receiver_id: string | null
           room_name: string
           started_at: string
         }
         Insert: {
+          call_state?: string
           call_type?: string
           conversation_id: string
           created_at?: string
@@ -34,10 +37,12 @@ export type Database = {
           initiated_by: string
           is_active?: boolean
           participant_count?: number
+          receiver_id?: string | null
           room_name: string
           started_at?: string
         }
         Update: {
+          call_state?: string
           call_type?: string
           conversation_id?: string
           created_at?: string
@@ -45,6 +50,7 @@ export type Database = {
           initiated_by?: string
           is_active?: boolean
           participant_count?: number
+          receiver_id?: string | null
           room_name?: string
           started_at?: string
         }
