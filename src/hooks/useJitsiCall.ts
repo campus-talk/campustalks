@@ -68,6 +68,7 @@ export const useJitsiCall = (currentUserId: string) => {
   const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
+  const endCallRef = useRef<() => void>(() => {});
   
   const { toast } = useToast();
 
@@ -212,117 +213,130 @@ export const useJitsiCall = (currentUserId: string) => {
     return `campustalks_${ids.join('_')}`.replace(/-/g, '').substring(0, 40);
   };
 
-  // OPTIMISTIC CALL START - UI shows immediately
-  const startCall = useCallback(async (
+  // OPTIMISTIC CALL START - UI shows IMMEDIATELY, no blocking
+  const startCall = useCallback((
     otherUserId: string, 
     isVideo: boolean = true, 
     conversationId?: string,
     isGroup: boolean = false,
     displayName: string = 'User'
   ) => {
-    // INSTANT UI - Show call screen immediately
+    // Generate room name synchronously
     const roomName = generateRoomName(otherUserId, conversationId);
     
-    // Get caller profile first for better UX
-    const { data: callerProfile } = await supabase
-      .from('profiles')
-      .select('full_name, avatar_url')
-      .eq('id', currentUserId)
-      .single();
-
-    // INSTANT STATE CHANGE
+    // ⚡ INSTANT STATE CHANGE - NO AWAITS BEFORE THIS
     setCallState('calling');
     setIsVideoCall(isVideo);
     setIsCameraOn(isVideo);
     setIsMicOn(true);
     setIsInCall(true);
     setCallDuration(0);
+    setIsScreenSharing(false);
     
+    // Set config immediately with placeholder name
     setCallConfig({
       roomName,
-      displayName: callerProfile?.full_name || displayName,
-      avatarUrl: callerProfile?.avatar_url || undefined,
+      displayName: displayName || 'User',
+      avatarUrl: undefined,
       isVideoCall: isVideo,
       conversationId,
       isGroup,
     });
 
-    // Play outgoing ringtone
-    outgoingRingtone.current?.play().catch(console.log);
+    // Play outgoing ringtone immediately
+    outgoingRingtone.current?.play().catch(() => {});
 
-    // Background tasks - don't block UI
-    try {
-      // Create active call record
-      const { data: activeCall } = await supabase
-        .from('active_calls')
-        .insert({
-          conversation_id: conversationId,
-          room_name: roomName,
-          call_type: isVideo ? 'video' : 'audio',
-          initiated_by: currentUserId,
-        })
-        .select()
-        .single();
+    // 🔄 BACKGROUND: All async operations happen AFTER UI is shown
+    (async () => {
+      try {
+        // Get caller profile (for notification, not for UI)
+        const { data: callerProfile } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', currentUserId)
+          .single();
 
-      if (activeCall) {
-        activeCallIdRef.current = activeCall.id;
-        setCallConfig(prev => prev ? { ...prev, callId: activeCall.id } : null);
-
-        // Add self as participant
-        await supabase.from('call_participants').insert({
-          call_id: activeCall.id,
-          user_id: currentUserId,
-        });
-      }
-
-      // Send call notification
-      await supabase.from('notifications').insert({
-        user_id: otherUserId,
-        type: isVideo ? 'incoming_call' : 'call',
-        title: `${isVideo ? 'Video' : 'Voice'} call from ${callerProfile?.full_name}`,
-        body: 'Tap to answer',
-        sender_id: currentUserId,
-        conversation_id: conversationId || roomName,
-      });
-
-      // Send push notification
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          type: 'call',
-          recipientIds: [otherUserId],
-          senderId: currentUserId,
-          senderName: callerProfile?.full_name || 'Someone',
-          callType: isVideo ? 'video' : 'audio',
-          conversationId: conversationId,
-        },
-      }).catch(console.log);
-
-      // Log call
-      await supabase.from('call_logs').insert({
-        caller_id: currentUserId,
-        receiver_id: otherUserId,
-        conversation_id: conversationId,
-        call_type: isVideo ? 'video' : 'audio',
-        call_status: 'initiated',
-      });
-
-      // Set timeout for unanswered calls
-      callTimeoutRef.current = setTimeout(() => {
-        if (callState === 'calling' || callState === 'ringing') {
-          stopRingtones();
-          toast({
-            title: 'No answer',
-            description: 'The call was not answered',
-          });
-          endCall();
+        // Update config with real profile data (optional enhancement)
+        if (callerProfile) {
+          setCallConfig(prev => prev ? {
+            ...prev,
+            displayName: callerProfile.full_name || displayName,
+            avatarUrl: callerProfile.avatar_url || undefined,
+          } : null);
         }
-      }, 35000);
 
-    } catch (error) {
-      console.error('Error starting call:', error);
-      // Don't end call on notification errors - Jitsi can still work
-    }
-  }, [currentUserId, toast, callState]);
+        // Create active call record
+        const { data: activeCall } = await supabase
+          .from('active_calls')
+          .insert({
+            conversation_id: conversationId,
+            room_name: roomName,
+            call_type: isVideo ? 'video' : 'audio',
+            initiated_by: currentUserId,
+          })
+          .select()
+          .single();
+
+        if (activeCall) {
+          activeCallIdRef.current = activeCall.id;
+          setCallConfig(prev => prev ? { ...prev, callId: activeCall.id } : null);
+
+          // Add self as participant
+          await supabase.from('call_participants').insert({
+            call_id: activeCall.id,
+            user_id: currentUserId,
+          });
+        }
+
+        // Send call notification to recipient
+        await supabase.from('notifications').insert({
+          user_id: otherUserId,
+          type: isVideo ? 'incoming_call' : 'call',
+          title: `${isVideo ? 'Video' : 'Voice'} call from ${callerProfile?.full_name || 'Someone'}`,
+          body: 'Tap to answer',
+          sender_id: currentUserId,
+          conversation_id: conversationId || roomName,
+        });
+
+        // Send push notification (fire and forget)
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            type: 'call',
+            recipientIds: [otherUserId],
+            senderId: currentUserId,
+            senderName: callerProfile?.full_name || 'Someone',
+            callType: isVideo ? 'video' : 'audio',
+            conversationId: conversationId,
+          },
+        }).catch(() => {});
+
+        // Log call
+        await supabase.from('call_logs').insert({
+          caller_id: currentUserId,
+          receiver_id: otherUserId,
+          conversation_id: conversationId,
+          call_type: isVideo ? 'video' : 'audio',
+          call_status: 'initiated',
+        });
+
+      } catch (error) {
+        console.error('Background call setup error (non-critical):', error);
+        // Don't end call on background errors - Jitsi can still work
+      }
+    })();
+
+    // Set timeout for unanswered calls (35 seconds)
+    callTimeoutRef.current = setTimeout(() => {
+      stopRingtones();
+      toast({
+        title: 'No answer',
+        description: 'The call was not answered',
+      });
+      // Use ref to avoid circular dependency
+      endCallRef.current();
+    }, 35000);
+
+  }, [currentUserId, toast]);
 
   const startAudioCall = useCallback(async (
     otherUserId: string,
@@ -504,6 +518,11 @@ export const useJitsiCall = (currentUserId: string) => {
     activeCallIdRef.current = null;
   }, [callConfig, currentUserId]);
 
+  // Keep ref in sync with endCall
+  useEffect(() => {
+    endCallRef.current = endCall;
+  }, [endCall]);
+
   const toggleMic = useCallback(() => {
     if (apiRef.current) {
       apiRef.current.executeCommand('toggleAudio');
@@ -573,13 +592,26 @@ export const useJitsiCall = (currentUserId: string) => {
 
   // Initialize Jitsi when call starts - Jitsi is INVISIBLE infrastructure
   const initializeJitsi = useCallback((container: HTMLDivElement) => {
-    if (!callConfig || !jitsiReady || !window.JitsiMeetExternalAPI) {
+    if (!callConfig || !window.JitsiMeetExternalAPI) {
+      // If Jitsi not ready, poll and retry
+      if (!window.JitsiMeetExternalAPI) {
+        const checkAndInit = setInterval(() => {
+          if (window.JitsiMeetExternalAPI) {
+            clearInterval(checkAndInit);
+            initializeJitsi(container);
+          }
+        }, 100);
+        setTimeout(() => clearInterval(checkAndInit), 5000); // Stop after 5s
+        return;
+      }
       return;
     }
 
+    // Prevent double initialization
+    if (apiRef.current) return;
     containerRef.current = container;
 
-    // Jitsi config - COMPLETELY HIDE DEFAULT UI + DISABLE LOBBY/MODERATOR
+    // Jitsi config - COMPLETELY HIDE DEFAULT UI + DISABLE ALL LOBBY/MODERATOR
     const options = {
       roomName: callConfig.roomName,
       parentNode: container,
@@ -591,28 +623,30 @@ export const useJitsiCall = (currentUserId: string) => {
       },
       jwt: undefined, // No JWT = no auth required
       configOverwrite: {
-        // CRITICAL: Disable lobby and moderator requirements
+        // ⚡ CRITICAL: Disable ALL lobby and moderator requirements
         enableLobby: false,
         lobbyModeEnabled: false,
+        'lobby.enabled': false,
         prejoinPageEnabled: false,
+        prejoinConfig: { enabled: false },
         enableWelcomePage: false,
         enableClosePage: false,
         requireDisplayName: false,
         
-        // Disable all auth/moderator features
+        // Disable ALL auth/moderator features  
         disableModeratorIndicator: true,
         enableInsecureRoomNameWarning: false,
         enableNoisyMicDetection: false,
         
-        // Start state
-        startWithAudioMuted: !isMicOn,
-        startWithVideoMuted: !callConfig.isVideoCall || !isCameraOn,
-        
-        // Auto-join without any prompts
+        // ⚡ AUTO-JOIN: No prompts, no waiting rooms
         disableInitialGUM: false,
         startSilent: false,
         
-        // Disable UI elements completely
+        // Audio/Video start state
+        startWithAudioMuted: !isMicOn,
+        startWithVideoMuted: !callConfig.isVideoCall || !isCameraOn,
+        
+        // Disable ALL UI elements
         disableDeepLinking: true,
         disableThirdPartyRequests: true,
         disableInviteFunctions: true,
@@ -622,7 +656,7 @@ export const useJitsiCall = (currentUserId: string) => {
         disableSelfView: false,
         disableSelfViewSettings: true,
         
-        // Quality settings for low bandwidth
+        // Quality settings for mobile/low bandwidth
         resolution: 720,
         constraints: {
           video: {
@@ -633,7 +667,7 @@ export const useJitsiCall = (currentUserId: string) => {
         enableLayerSuspension: true,
         channelLastN: 4,
         
-        // P2P for 1-on-1 calls (faster, lower latency)
+        // P2P for 1-on-1 calls (faster connection)
         p2p: {
           enabled: true,
           stunServers: [
@@ -642,31 +676,35 @@ export const useJitsiCall = (currentUserId: string) => {
           ],
         },
         
-        // Disable all notifications
+        // Disable ALL notifications from Jitsi
         disableJoinLeaveNotifications: true,
         notifications: [],
         
-        // Other UI hiding
+        // Hide conference info
         hideConferenceSubject: true,
         hideConferenceTimer: true,
         hideRecordingLabel: true,
         hideLobbyButton: true,
         hideDisplayName: false,
         
-        // Disable all extras
+        // Disable extras
         enableCalendarIntegration: false,
         enableEmailInStats: false,
         disableSpeakerStatsSearch: true,
         speakerStatsOrder: [],
+        
+        // Extra lobby disabling
+        hiddenPremeetingButtons: ['microphone', 'camera', 'select-background', 'invite', 'settings'],
+        securityUi: { hideLobbyButton: true, disableLobbyPassword: true },
       },
       interfaceConfigOverwrite: {
-        // HIDE ALL TOOLBAR BUTTONS - We use custom controls ONLY
+        // ⚡ HIDE ALL TOOLBAR BUTTONS - Custom controls ONLY
         TOOLBAR_BUTTONS: [],
         TOOLBAR_ALWAYS_VISIBLE: false,
         INITIAL_TOOLBAR_TIMEOUT: 0,
         TOOLBAR_TIMEOUT: 0,
         
-        // Hide all Jitsi branding/UI elements
+        // Hide ALL Jitsi branding/UI
         SHOW_JITSI_WATERMARK: false,
         SHOW_WATERMARK_FOR_GUESTS: false,
         SHOW_BRAND_WATERMARK: false,
@@ -675,7 +713,7 @@ export const useJitsiCall = (currentUserId: string) => {
         SHOW_PROMOTIONAL_CLOSE_PAGE: false,
         SHOW_CHROME_EXTENSION_BANNER: false,
         
-        // UI settings
+        // Background
         DEFAULT_BACKGROUND: '#0f0f23',
         DISABLE_VIDEO_BACKGROUND: false,
         MOBILE_APP_PROMO: false,
@@ -684,19 +722,19 @@ export const useJitsiCall = (currentUserId: string) => {
         DISABLE_PRESENCE_STATUS: true,
         DISABLE_FOCUS_INDICATOR: true,
         
-        // Hide filmstrip controls
-        FILM_STRIP_MAX_HEIGHT: 100,
+        // Filmstrip
+        FILM_STRIP_MAX_HEIGHT: 120,
         VERTICAL_FILMSTRIP: false,
         filmStripOnly: false,
         
-        // Disable settings access
+        // Disable settings
         SETTINGS_SECTIONS: [],
         
         // Video layout
         VIDEO_LAYOUT_FIT: 'both',
         TILE_VIEW_MAX_COLUMNS: 2,
         
-        // Disable all indicators
+        // Disable indicators
         DISABLE_DOMINANT_SPEAKER_INDICATOR: true,
         DISABLE_TRANSCRIPTION_SUBTITLES: true,
         DISABLE_RINGING: true,
@@ -704,6 +742,10 @@ export const useJitsiCall = (currentUserId: string) => {
         // No feedback
         ENABLE_FEEDBACK_ANIMATION: false,
         DISABLE_FEEDBACK: true,
+        
+        // Auto-hide elements
+        AUTO_PIN_LATEST_SCREEN_SHARE: true,
+        HIDE_KICK_BUTTON_FOR_GUESTS: true,
       },
     };
 
@@ -711,7 +753,7 @@ export const useJitsiCall = (currentUserId: string) => {
       const api = new window.JitsiMeetExternalAPI('meet.jit.si', options);
       apiRef.current = api;
 
-      // Stop ringtone and update state when connected
+      // ⚡ Conference joined - stop ringtone, update state
       api.addEventListener('videoConferenceJoined', () => {
         console.log('Jitsi: Conference joined');
         stopRingtones();
@@ -752,7 +794,7 @@ export const useJitsiCall = (currentUserId: string) => {
       });
 
       api.addEventListener('participantJoined', () => {
-        // Another participant joined - update state
+        // Another participant joined
         setCallState('connected');
         stopRingtones();
         clearCallTimeout();
@@ -760,17 +802,21 @@ export const useJitsiCall = (currentUserId: string) => {
 
       api.addEventListener('participantLeft', () => {
         // Check if alone
-        const count = api.getNumberOfParticipants?.() || 1;
-        if (count <= 1) {
-          toast({
-            title: 'Call ended',
-            description: 'The other participant left the call',
-          });
-          endCall();
+        try {
+          const count = api.getNumberOfParticipants?.() || 1;
+          if (count <= 1) {
+            toast({
+              title: 'Call ended',
+              description: 'The other participant left the call',
+            });
+            endCall();
+          }
+        } catch (e) {
+          // Ignore errors during cleanup
         }
       });
 
-      // Update state to connecting
+      // Update state to connecting (Jitsi is initializing)
       setCallState('connecting');
 
     } catch (error) {
@@ -782,7 +828,7 @@ export const useJitsiCall = (currentUserId: string) => {
       });
       endCall();
     }
-  }, [callConfig, jitsiReady, isMicOn, isCameraOn, endCall, toast, currentUserId]);
+  }, [callConfig, isMicOn, isCameraOn, endCall, toast, currentUserId]);
 
   // Format call duration
   const formatDuration = useCallback((seconds: number) => {

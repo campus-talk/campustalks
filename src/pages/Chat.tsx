@@ -495,18 +495,21 @@ const Chat = () => {
     const messageToSend = forceMessage || newMessage.trim();
     if (!messageToSend || sending) return;
 
-    // Check tone guard if enabled and no force message
+    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
+    // But DON'T block message send - that feels slow
     if (!forceMessage && aiSettings?.emotion_filter_enabled) {
-      const toneResult = await checkToneGuard(messageToSend);
-      if (toneResult?.shouldWarn) {
-        const softened = await getSoftenedMessage(messageToSend);
-        setToneGuardDialog({
-          message: messageToSend,
-          reason: toneResult.reason,
-          softenedMessage: softened || undefined,
-        });
-        return;
-      }
+      // Run tone check async, don't await
+      checkToneGuard(messageToSend).then(async (toneResult) => {
+        if (toneResult?.shouldWarn) {
+          const softened = await getSoftenedMessage(messageToSend);
+          setToneGuardDialog({
+            message: messageToSend,
+            reason: toneResult.reason,
+            softenedMessage: softened || undefined,
+          });
+        }
+      }).catch(() => {});
+      // Continue sending - we don't block on tone guard
     }
 
     // Generate temp ID for optimistic message
@@ -524,7 +527,7 @@ const Chat = () => {
       _tempId: tempId,
     };
 
-    // INSTANTLY add to UI (optimistic update)
+    // ⚡ INSTANTLY add to UI (optimistic update) - NO BLOCKING
     setMessages(prev => [...prev, optimisticMessage]);
     
     // Clear input immediately for snappy UX
@@ -532,11 +535,18 @@ const Chat = () => {
     const savedReplyTo = replyingTo;
     setNewMessage("");
     setReplyingTo(null);
+    setSmartReplies([]); // Clear smart replies on send
     
-    // Auto-scroll to bottom immediately
-    requestAnimationFrame(() => scrollToBottom("smooth"));
+    // ⚡ Auto-scroll to bottom IMMEDIATELY using RAF
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToBottom("smooth");
+      });
+    });
 
     setSending(true);
+    
+    // 🔄 ASYNC: Database insert happens in background
     try {
       const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
@@ -548,14 +558,14 @@ const Chat = () => {
 
       if (error) throw error;
 
-      // RECONCILE: Replace optimistic message with real one
+      // ✅ RECONCILE: Replace optimistic message with real one
       setMessages(prev => prev.map(m => 
         m._tempId === tempId 
           ? { ...messageData, reactions: [], _isOptimistic: false, _tempId: undefined, _isFailed: undefined }
           : m
       ));
 
-      // Background tasks: notifications (don't block UI)
+      // 🔄 Background tasks: notifications (fire and forget)
       (async () => {
         try {
           const { data: senderProfile } = await supabase
@@ -619,12 +629,12 @@ const Chat = () => {
             }
           }
         } catch (e) {
-          console.log("Background notification error (non-critical):", e);
+          // Non-critical background error
         }
       })();
 
     } catch (error: any) {
-      // MARK AS FAILED - allow retry
+      // ❌ MARK AS FAILED - allow retry
       setMessages(prev => prev.map(m => 
         m._tempId === tempId 
           ? { ...m, _isFailed: true }
