@@ -671,6 +671,11 @@ const Chat = () => {
     }
   };
 
+  // Retry sending a failed message
+  const handleRetryMessage = async (tempId: string) => {
+    const failedMessage = messages.find(m => m._tempId === tempId && m._isFailed);
+    if (!failedMessage) return;
+
     // Mark as sending again
     setMessages(prev => prev.map(m => 
       m._tempId === tempId ? { ...m, _isFailed: false } : m
