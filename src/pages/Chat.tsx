@@ -500,6 +500,41 @@ const Chat = () => {
   // Generate a temporary ID for optimistic messages
   const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+  // Subscribe to typing indicator via Presence
+  const subscribeToTyping = () => {
+    if (!conversationId || !currentUserId) return;
+    
+    const channel = supabase.channel(`typing:${conversationId}`, {
+      config: { presence: { key: currentUserId } },
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        // Check if any OTHER user is typing
+        const someoneTyping = Object.entries(state).some(([key, presences]) => {
+          if (key === currentUserId) return false;
+          return (presences as any[]).some(p => p.typing === true);
+        });
+        setOtherUserTyping(someoneTyping);
+      })
+      .subscribe();
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+    };
+  };
+
+  // Broadcast typing status
+  const broadcastTyping = useCallback((isTyping: boolean) => {
+    if (typingChannelRef.current) {
+      typingChannelRef.current.track({ typing: isTyping });
+    }
+  }, []);
+
   const handleSendMessage = async (e: React.FormEvent, forceMessage?: string) => {
     e.preventDefault();
     const messageToSend = forceMessage || newMessage.trim();
