@@ -121,7 +121,8 @@ export const useJitsiCall = (currentUserId: string) => {
   }, []);
 
   const generateRoomName = useCallback((conversationId: string) => {
-    return `campustalks_${conversationId}`.replace(/-/g, '').substring(0, 30);
+    // Use longer unique name to avoid collisions on meet.jit.si
+    return `ct${conversationId.replace(/-/g, '')}`;
   }, []);
 
   // ==========================================
