@@ -552,8 +552,20 @@ const Chat = () => {
       });
     });
 
-    setSending(true);
-    
+    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
+    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
+      checkToneGuard(messageToSend).then(async (toneResult) => {
+        if (toneResult?.shouldWarn) {
+          const softened = await getSoftenedMessage(messageToSend);
+          setToneGuardDialog({
+            message: messageToSend,
+            reason: toneResult.reason,
+            softenedMessage: softened || undefined,
+          });
+        }
+      }).catch(() => {});
+    }
+
     // 🔄 ASYNC: Database insert happens in background
     try {
       const { data: messageData, error } = await supabase.from("messages").insert({
