@@ -1472,6 +1472,25 @@ const Chat = () => {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Typing Indicator */}
+        <AnimatePresence>
+          {otherUserTyping && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-4 py-2 flex items-center gap-2"
+            >
+              <div className="flex gap-1">
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-muted-foreground">{otherUser?.full_name} is typing...</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Input */}
         <div className="bg-card/95 backdrop-blur-xl border-t border-border/30 flex-shrink-0 relative pb-safe-bottom">
           {/* Smart Replies */}
