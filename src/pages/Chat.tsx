@@ -139,7 +139,12 @@ const Chat = () => {
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
     initializeChat();
-    subscribeToMessages();
+    const unsubMessages = subscribeToMessages();
+    const unsubTyping = subscribeToTyping();
+    return () => {
+      unsubMessages?.();
+      unsubTyping?.();
+    };
   }, [conversationId]);
 
   // Mark messages as read immediately when chat opens
