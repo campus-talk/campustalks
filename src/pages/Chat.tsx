@@ -503,12 +503,10 @@ const Chat = () => {
   const handleSendMessage = async (e: React.FormEvent, forceMessage?: string) => {
     e.preventDefault();
     const messageToSend = forceMessage || newMessage.trim();
-    if (!messageToSend || sending) return;
+    if (!messageToSend || sendingLockRef.current) return;
 
-    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
-    // But DON'T block message send - that feels slow
-    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
-      // Run tone check async, don't await
+    // Lock immediately to prevent double sends
+    sendingLockRef.current = true;
       checkToneGuard(messageToSend).then(async (toneResult) => {
         if (toneResult?.shouldWarn) {
           const softened = await getSoftenedMessage(messageToSend);
