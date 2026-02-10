@@ -1499,7 +1499,7 @@ const Chat = () => {
             </Button>
             <Button
               type="submit"
-              disabled={sending || !newMessage.trim()}
+              disabled={!newMessage.trim()}
               className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
               size="icon"
             >
