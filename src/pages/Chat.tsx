@@ -666,14 +666,10 @@ const Chat = () => {
         description: "Tap message to retry",
       });
     } finally {
-      setSending(false);
+      // Release lock after a small delay to prevent rapid double taps
+      setTimeout(() => { sendingLockRef.current = false; }, 300);
     }
   };
-
-  // Retry sending a failed message
-  const handleRetryMessage = async (tempId: string) => {
-    const failedMessage = messages.find(m => m._tempId === tempId && m._isFailed);
-    if (!failedMessage) return;
 
     // Mark as sending again
     setMessages(prev => prev.map(m => 
