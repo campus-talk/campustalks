@@ -110,6 +110,7 @@ const Chat = () => {
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedMessageRef = useRef<string | null>(null);
+  const typingBroadcastRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     startCall,
