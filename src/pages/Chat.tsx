@@ -752,11 +752,16 @@ const Chat = () => {
 
     // Track typing state for auto-reply
     setIsUserTyping(true);
+    
+    // Broadcast typing to other user
+    broadcastTyping(true);
+    
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     typingTimeoutRef.current = setTimeout(() => {
       setIsUserTyping(false);
+      broadcastTyping(false);
     }, 3000); // Stop typing after 3 seconds of inactivity
 
     // Clear smart replies when user starts typing
