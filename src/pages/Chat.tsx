@@ -74,13 +74,17 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
-  const [sending, setSending] = useState(false);
   const [activeCall, setActiveCall] = useState<{ id: string; call_type: string; participant_count: number; room_name: string } | null>(null);
 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const initialAutoScrollDoneRef = useRef(false);
+  const sendingLockRef = useRef(false); // Ref-based lock to prevent double sends
+
+  // Typing indicator state
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; isSent: boolean } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ messageId: string; canDeleteForEveryone: boolean } | null>(null);
