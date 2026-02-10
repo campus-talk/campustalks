@@ -74,13 +74,17 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
-  const [sending, setSending] = useState(false);
   const [activeCall, setActiveCall] = useState<{ id: string; call_type: string; participant_count: number; room_name: string } | null>(null);
 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const initialAutoScrollDoneRef = useRef(false);
+  const sendingLockRef = useRef(false); // Ref-based lock to prevent double sends
+
+  // Typing indicator state
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; isSent: boolean } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ messageId: string; canDeleteForEveryone: boolean } | null>(null);
@@ -106,6 +110,7 @@ const Chat = () => {
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedMessageRef = useRef<string | null>(null);
+  const typingBroadcastRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     startCall,
@@ -134,7 +139,12 @@ const Chat = () => {
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
     initializeChat();
-    subscribeToMessages();
+    const unsubMessages = subscribeToMessages();
+    const unsubTyping = subscribeToTyping();
+    return () => {
+      unsubMessages?.();
+      unsubTyping?.();
+    };
   }, [conversationId]);
 
   // Mark messages as read immediately when chat opens
@@ -490,27 +500,51 @@ const Chat = () => {
   // Generate a temporary ID for optimistic messages
   const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+  // Subscribe to typing indicator via Presence
+  const subscribeToTyping = () => {
+    if (!conversationId || !currentUserId) return;
+    
+    const channel = supabase.channel(`typing:${conversationId}`, {
+      config: { presence: { key: currentUserId } },
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        // Check if any OTHER user is typing
+        const someoneTyping = Object.entries(state).some(([key, presences]) => {
+          if (key === currentUserId) return false;
+          return (presences as any[]).some(p => p.typing === true);
+        });
+        setOtherUserTyping(someoneTyping);
+      })
+      .subscribe();
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+    };
+  };
+
+  // Broadcast typing status
+  const broadcastTyping = useCallback((isTyping: boolean) => {
+    if (typingChannelRef.current) {
+      typingChannelRef.current.track({ typing: isTyping });
+    }
+  }, []);
+
   const handleSendMessage = async (e: React.FormEvent, forceMessage?: string) => {
     e.preventDefault();
     const messageToSend = forceMessage || newMessage.trim();
-    if (!messageToSend || sending) return;
+    if (!messageToSend || sendingLockRef.current) return;
 
-    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
-    // But DON'T block message send - that feels slow
-    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
-      // Run tone check async, don't await
-      checkToneGuard(messageToSend).then(async (toneResult) => {
-        if (toneResult?.shouldWarn) {
-          const softened = await getSoftenedMessage(messageToSend);
-          setToneGuardDialog({
-            message: messageToSend,
-            reason: toneResult.reason,
-            softenedMessage: softened || undefined,
-          });
-        }
-      }).catch(() => {});
-      // Continue sending - we don't block on tone guard
-    }
+    // Lock immediately to prevent double sends
+    sendingLockRef.current = true;
+    
+    // Stop typing indicator on send
+    broadcastTyping(false);
 
     // Generate temp ID for optimistic message
     const tempId = generateTempId();
@@ -544,8 +578,20 @@ const Chat = () => {
       });
     });
 
-    setSending(true);
-    
+    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
+    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
+      checkToneGuard(messageToSend).then(async (toneResult) => {
+        if (toneResult?.shouldWarn) {
+          const softened = await getSoftenedMessage(messageToSend);
+          setToneGuardDialog({
+            message: messageToSend,
+            reason: toneResult.reason,
+            softenedMessage: softened || undefined,
+          });
+        }
+      }).catch(() => {});
+    }
+
     // 🔄 ASYNC: Database insert happens in background
     try {
       const { data: messageData, error } = await supabase.from("messages").insert({
@@ -646,7 +692,8 @@ const Chat = () => {
         description: "Tap message to retry",
       });
     } finally {
-      setSending(false);
+      // Release lock after a small delay to prevent rapid double taps
+      setTimeout(() => { sendingLockRef.current = false; }, 300);
     }
   };
 
@@ -696,11 +743,16 @@ const Chat = () => {
 
     // Track typing state for auto-reply
     setIsUserTyping(true);
+    
+    // Broadcast typing to other user
+    broadcastTyping(true);
+    
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     typingTimeoutRef.current = setTimeout(() => {
       setIsUserTyping(false);
+      broadcastTyping(false);
     }, 3000); // Stop typing after 3 seconds of inactivity
 
     // Clear smart replies when user starts typing
@@ -1411,6 +1463,25 @@ const Chat = () => {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Typing Indicator */}
+        <AnimatePresence>
+          {otherUserTyping && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-4 py-2 flex items-center gap-2"
+            >
+              <div className="flex gap-1">
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-muted-foreground">{otherUser?.full_name} is typing...</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Input */}
         <div className="bg-card/95 backdrop-blur-xl border-t border-border/30 flex-shrink-0 relative pb-safe-bottom">
           {/* Smart Replies */}
@@ -1478,7 +1549,7 @@ const Chat = () => {
             </Button>
             <Button
               type="submit"
-              disabled={sending || !newMessage.trim()}
+              disabled={!newMessage.trim()}
               className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
               size="icon"
             >
