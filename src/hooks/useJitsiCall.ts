@@ -723,15 +723,19 @@ export const useJitsiCall = (currentUserId: string) => {
         avatarURL: callConfig.avatarUrl,
       },
       configOverwrite: {
-        // Disable lobby/prejoin - direct connect
+        // CRITICAL: Disable ALL lobby/moderator features
         enableLobby: false,
-        lobbyModeEnabled: false,
+        hideLobbyButton: true,
         prejoinPageEnabled: false,
+        prejoinConfig: { enabled: false },
         enableWelcomePage: false,
         enableClosePage: false,
         requireDisplayName: false,
         disableModeratorIndicator: true,
         enableInsecureRoomNameWarning: false,
+        
+        // Disable waiting for moderator
+        enableAutomaticUrlCopy: false,
         
         // Audio/video
         startWithAudioMuted: !isMicOn,
@@ -745,7 +749,7 @@ export const useJitsiCall = (currentUserId: string) => {
         enableLayerSuspension: true,
         channelLastN: 4,
         
-        // P2P
+        // P2P for 1-on-1 calls
         p2p: {
           enabled: true,
           stunServers: [
@@ -754,7 +758,7 @@ export const useJitsiCall = (currentUserId: string) => {
           ],
         },
         
-        // Disable extras
+        // Disable ALL extras
         disableDeepLinking: true,
         disableThirdPartyRequests: true,
         disableInviteFunctions: true,
@@ -764,6 +768,8 @@ export const useJitsiCall = (currentUserId: string) => {
         hideConferenceTimer: true,
         disableJoinLeaveNotifications: true,
         notifications: [],
+        // Disable lobby mode explicitly
+        lobby: { enabled: false, autoKnock: true },
       },
       interfaceConfigOverwrite: {
         TOOLBAR_BUTTONS: [],
