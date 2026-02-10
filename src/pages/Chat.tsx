@@ -542,18 +542,9 @@ const Chat = () => {
 
     // Lock immediately to prevent double sends
     sendingLockRef.current = true;
-      checkToneGuard(messageToSend).then(async (toneResult) => {
-        if (toneResult?.shouldWarn) {
-          const softened = await getSoftenedMessage(messageToSend);
-          setToneGuardDialog({
-            message: messageToSend,
-            reason: toneResult.reason,
-            softenedMessage: softened || undefined,
-          });
-        }
-      }).catch(() => {});
-      // Continue sending - we don't block on tone guard
-    }
+    
+    // Stop typing indicator on send
+    broadcastTyping(false);
 
     // Generate temp ID for optimistic message
     const tempId = generateTempId();
