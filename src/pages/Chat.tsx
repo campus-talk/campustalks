@@ -465,6 +465,21 @@ const Chat = () => {
           setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+          }
+        }
+      )
       .subscribe();
 
     const reactionsChannel = supabase
@@ -800,14 +815,22 @@ const Chat = () => {
   };
 
   const handleDeleteForEveryone = async () => {
-    if (!deleteDialog) return;
+    if (!deleteDialog || !conversationId) return;
     try {
+      // 1. Create delete instruction so other user's client removes it too
+      await supabase.from("delete_instructions").insert({
+        message_id: deleteDialog.messageId,
+        conversation_id: conversationId,
+        initiated_by: currentUserId,
+      });
+
+      // 2. Delete the actual message from DB
       await supabase
         .from("messages")
         .delete()
         .eq("id", deleteDialog.messageId);
       
-      // Remove from local state immediately
+      // 3. Remove from local state immediately
       setMessages(prev => prev.filter(m => m.id !== deleteDialog.messageId));
       
       toast({
@@ -985,11 +1008,10 @@ const Chat = () => {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("chat-attachments")
-        .getPublicUrl(fileName);
-
-      const contentPayload = JSON.stringify({ url: publicUrl, duration });
+      // Store the storage path reference (not public URL) since bucket is private
+      // Format: storage://chat-attachments/<path> so player can create signed URLs
+      const storagePath = `storage://chat-attachments/${fileName}`;
+      const contentPayload = JSON.stringify({ url: storagePath, duration });
 
       const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
