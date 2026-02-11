@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useJitsiCall } from "@/hooks/useJitsiCall";
@@ -24,6 +24,8 @@ import ReminderSuggestion from "@/components/ReminderSuggestion";
 import DateSeparator from "@/components/DateSeparator";
 import ChatUserProfile from "@/components/ChatUserProfile";
 import ActiveCallBanner from "@/components/ActiveCallBanner";
+import VoiceRecorder from "@/components/VoiceRecorder";
+import VoiceMessagePlayer from "@/components/VoiceMessagePlayer";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
 import { format, isSameDay } from "date-fns";
@@ -951,6 +953,67 @@ const Chat = () => {
     }
   };
 
+  const handleVoiceSend = async (blob: Blob, duration: number) => {
+    if (!conversationId || !currentUserId) return;
+
+    const tempId = generateTempId();
+    const localUrl = URL.createObjectURL(blob);
+
+    // Optimistic message with voice type
+    const optimisticMessage: Message = {
+      id: tempId,
+      content: JSON.stringify({ url: localUrl, duration }),
+      message_type: "voice",
+      sender_id: currentUserId,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      reactions: [],
+      reply_to: replyingTo?.id || null,
+      _isOptimistic: true,
+      _tempId: tempId,
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+    setReplyingTo(null);
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToBottom("smooth")));
+
+    try {
+      const fileName = `${conversationId}/voice_${Date.now()}.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from("chat-attachments")
+        .upload(fileName, blob, { contentType: "audio/webm" });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("chat-attachments")
+        .getPublicUrl(fileName);
+
+      const contentPayload = JSON.stringify({ url: publicUrl, duration });
+
+      const { data: messageData, error } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: currentUserId,
+        content: contentPayload,
+        message_type: "voice",
+        reply_to: replyingTo?.id || null,
+      }).select().single();
+
+      if (error) throw error;
+
+      setMessages(prev => prev.map(m =>
+        m._tempId === tempId
+          ? { ...messageData, reactions: [], _isOptimistic: false, _tempId: undefined, _isFailed: undefined }
+          : m
+      ));
+    } catch (error: any) {
+      setMessages(prev => prev.map(m =>
+        m._tempId === tempId ? { ...m, _isFailed: true } : m
+      ));
+      toast({ variant: "destructive", title: "Failed to send voice message" });
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1339,6 +1402,21 @@ const Chat = () => {
                         >
                           {message.deleted_for_everyone ? (
                             <p className="italic text-muted-foreground">This message was deleted</p>
+                          ) : message.message_type === "voice" ? (
+                            (() => {
+                              let voiceData = { url: "", duration: 0 };
+                              try { voiceData = JSON.parse(message.content); } catch {}
+                              return (
+                                <VoiceMessagePlayer
+                                  mediaUrl={voiceData.url}
+                                  messageId={message.id}
+                                  isSent={isSent}
+                                  currentUserId={currentUserId}
+                                  senderId={message.sender_id}
+                                  duration={voiceData.duration}
+                                />
+                              );
+                            })()
                           ) : isImage ? (
                             <img
                               src={message.content}
@@ -1476,14 +1554,18 @@ const Chat = () => {
             >
               <Clock className="w-5 h-5" />
             </Button>
-            <Button
-              type="submit"
-              disabled={sending || !newMessage.trim()}
-              className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
-              size="icon"
-            >
-              <Send className="w-5 h-5" />
-            </Button>
+            {newMessage.trim() ? (
+              <Button
+                type="submit"
+                disabled={sending}
+                className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
+                size="icon"
+              >
+                <Send className="w-5 h-5" />
+              </Button>
+            ) : (
+              <VoiceRecorder onSend={handleVoiceSend} disabled={sending} />
+            )}
           </form>
         </div>
       </div>
