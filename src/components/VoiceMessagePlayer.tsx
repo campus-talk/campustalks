@@ -51,39 +51,48 @@ const VoiceMessagePlayer = ({
     setLoading(true);
 
     try {
-      // Extract storage path
-      const bucketName = "chat-attachments";
-      const publicPattern = `/storage/v1/object/public/${bucketName}/`;
-      const pathStart = mediaUrl.indexOf(publicPattern);
-
+      // Handle storage:// protocol (private bucket path)
+      const storagePrefix = "storage://chat-attachments/";
       let storagePath: string | null = null;
-      if (pathStart !== -1) {
-        storagePath = decodeURIComponent(
-          mediaUrl.substring(pathStart + publicPattern.length).split("?")[0]
-        );
+
+      if (mediaUrl.startsWith(storagePrefix)) {
+        storagePath = mediaUrl.substring(storagePrefix.length);
+      } else {
+        // Try extracting from full URL
+        const bucketName = "chat-attachments";
+        const publicPattern = `/storage/v1/object/public/${bucketName}/`;
+        const pathStart = mediaUrl.indexOf(publicPattern);
+        if (pathStart !== -1) {
+          storagePath = decodeURIComponent(
+            mediaUrl.substring(pathStart + publicPattern.length).split("?")[0]
+          );
+        }
       }
 
       if (storagePath) {
-        // Get signed URL
         const { data, error } = await supabase.storage
-          .from(bucketName)
+          .from("chat-attachments")
           .createSignedUrl(storagePath, 3600);
 
         if (error) {
           console.error("Signed URL error:", error);
-          setAudioUrl(mediaUrl); // fallback
-        } else {
-          // Download and cache as blob for local persistence
-          try {
-            const response = await fetch(data.signedUrl);
-            const blob = await response.blob();
-            const localUrl = URL.createObjectURL(blob);
-            localBlobUrlRef.current = localUrl;
-            setAudioUrl(localUrl);
-          } catch {
-            setAudioUrl(data.signedUrl);
-          }
+          setLoading(false);
+          return;
         }
+
+        // Download and cache as blob for local persistence
+        try {
+          const response = await fetch(data.signedUrl);
+          const blob = await response.blob();
+          const localUrl = URL.createObjectURL(blob);
+          localBlobUrlRef.current = localUrl;
+          setAudioUrl(localUrl);
+        } catch {
+          setAudioUrl(data.signedUrl);
+        }
+      } else if (mediaUrl.startsWith("blob:")) {
+        // Local blob URL (optimistic message)
+        setAudioUrl(mediaUrl);
       } else {
         setAudioUrl(mediaUrl);
       }
@@ -119,18 +128,25 @@ const VoiceMessagePlayer = ({
 
   const deleteFromStorage = async () => {
     try {
-      const bucketName = "chat-attachments";
-      const publicPattern = `/storage/v1/object/public/${bucketName}/`;
-      const pathStart = mediaUrl.indexOf(publicPattern);
+      let storagePath: string | null = null;
+      const storagePrefix = "storage://chat-attachments/";
 
-      if (pathStart !== -1) {
-        const storagePath = decodeURIComponent(
-          mediaUrl.substring(pathStart + publicPattern.length).split("?")[0]
-        );
+      if (mediaUrl.startsWith(storagePrefix)) {
+        storagePath = mediaUrl.substring(storagePrefix.length);
+      } else {
+        const bucketName = "chat-attachments";
+        const publicPattern = `/storage/v1/object/public/${bucketName}/`;
+        const pathStart = mediaUrl.indexOf(publicPattern);
+        if (pathStart !== -1) {
+          storagePath = decodeURIComponent(
+            mediaUrl.substring(pathStart + publicPattern.length).split("?")[0]
+          );
+        }
+      }
 
-        // Delete from storage bucket to save space
+      if (storagePath) {
         const { error } = await supabase.storage
-          .from(bucketName)
+          .from("chat-attachments")
           .remove([storagePath]);
 
         if (error) {
