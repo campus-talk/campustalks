@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useJitsiCall } from "@/hooks/useJitsiCall";
@@ -24,6 +24,8 @@ import ReminderSuggestion from "@/components/ReminderSuggestion";
 import DateSeparator from "@/components/DateSeparator";
 import ChatUserProfile from "@/components/ChatUserProfile";
 import ActiveCallBanner from "@/components/ActiveCallBanner";
+import VoiceRecorder from "@/components/VoiceRecorder";
+import VoiceMessagePlayer from "@/components/VoiceMessagePlayer";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
 import { format, isSameDay } from "date-fns";
@@ -74,17 +76,13 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
+  const [sending, setSending] = useState(false);
   const [activeCall, setActiveCall] = useState<{ id: string; call_type: string; participant_count: number; room_name: string } | null>(null);
 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const initialAutoScrollDoneRef = useRef(false);
-  const sendingLockRef = useRef(false); // Ref-based lock to prevent double sends
-
-  // Typing indicator state
-  const [otherUserTyping, setOtherUserTyping] = useState(false);
-  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; isSent: boolean } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ messageId: string; canDeleteForEveryone: boolean } | null>(null);
@@ -110,7 +108,6 @@ const Chat = () => {
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedMessageRef = useRef<string | null>(null);
-  const typingBroadcastRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     startCall,
@@ -139,12 +136,7 @@ const Chat = () => {
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
     initializeChat();
-    const unsubMessages = subscribeToMessages();
-    const unsubTyping = subscribeToTyping();
-    return () => {
-      unsubMessages?.();
-      unsubTyping?.();
-    };
+    subscribeToMessages();
   }, [conversationId]);
 
   // Mark messages as read immediately when chat opens
@@ -473,6 +465,21 @@ const Chat = () => {
           setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+          }
+        }
+      )
       .subscribe();
 
     const reactionsChannel = supabase
@@ -500,51 +507,27 @@ const Chat = () => {
   // Generate a temporary ID for optimistic messages
   const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // Subscribe to typing indicator via Presence
-  const subscribeToTyping = () => {
-    if (!conversationId || !currentUserId) return;
-    
-    const channel = supabase.channel(`typing:${conversationId}`, {
-      config: { presence: { key: currentUserId } },
-    });
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        // Check if any OTHER user is typing
-        const someoneTyping = Object.entries(state).some(([key, presences]) => {
-          if (key === currentUserId) return false;
-          return (presences as any[]).some(p => p.typing === true);
-        });
-        setOtherUserTyping(someoneTyping);
-      })
-      .subscribe();
-
-    typingChannelRef.current = channel;
-
-    return () => {
-      supabase.removeChannel(channel);
-      typingChannelRef.current = null;
-    };
-  };
-
-  // Broadcast typing status
-  const broadcastTyping = useCallback((isTyping: boolean) => {
-    if (typingChannelRef.current) {
-      typingChannelRef.current.track({ typing: isTyping });
-    }
-  }, []);
-
   const handleSendMessage = async (e: React.FormEvent, forceMessage?: string) => {
     e.preventDefault();
     const messageToSend = forceMessage || newMessage.trim();
-    if (!messageToSend || sendingLockRef.current) return;
+    if (!messageToSend || sending) return;
 
-    // Lock immediately to prevent double sends
-    sendingLockRef.current = true;
-    
-    // Stop typing indicator on send
-    broadcastTyping(false);
+    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
+    // But DON'T block message send - that feels slow
+    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
+      // Run tone check async, don't await
+      checkToneGuard(messageToSend).then(async (toneResult) => {
+        if (toneResult?.shouldWarn) {
+          const softened = await getSoftenedMessage(messageToSend);
+          setToneGuardDialog({
+            message: messageToSend,
+            reason: toneResult.reason,
+            softenedMessage: softened || undefined,
+          });
+        }
+      }).catch(() => {});
+      // Continue sending - we don't block on tone guard
+    }
 
     // Generate temp ID for optimistic message
     const tempId = generateTempId();
@@ -578,20 +561,8 @@ const Chat = () => {
       });
     });
 
-    // ⚡ OPTIMISTIC: Check tone guard in background ONLY if not forced
-    if (!forceMessage && aiSettings?.emotion_filter_enabled) {
-      checkToneGuard(messageToSend).then(async (toneResult) => {
-        if (toneResult?.shouldWarn) {
-          const softened = await getSoftenedMessage(messageToSend);
-          setToneGuardDialog({
-            message: messageToSend,
-            reason: toneResult.reason,
-            softenedMessage: softened || undefined,
-          });
-        }
-      }).catch(() => {});
-    }
-
+    setSending(true);
+    
     // 🔄 ASYNC: Database insert happens in background
     try {
       const { data: messageData, error } = await supabase.from("messages").insert({
@@ -692,8 +663,7 @@ const Chat = () => {
         description: "Tap message to retry",
       });
     } finally {
-      // Release lock after a small delay to prevent rapid double taps
-      setTimeout(() => { sendingLockRef.current = false; }, 300);
+      setSending(false);
     }
   };
 
@@ -743,16 +713,11 @@ const Chat = () => {
 
     // Track typing state for auto-reply
     setIsUserTyping(true);
-    
-    // Broadcast typing to other user
-    broadcastTyping(true);
-    
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     typingTimeoutRef.current = setTimeout(() => {
       setIsUserTyping(false);
-      broadcastTyping(false);
     }, 3000); // Stop typing after 3 seconds of inactivity
 
     // Clear smart replies when user starts typing
@@ -850,14 +815,22 @@ const Chat = () => {
   };
 
   const handleDeleteForEveryone = async () => {
-    if (!deleteDialog) return;
+    if (!deleteDialog || !conversationId) return;
     try {
+      // 1. Create delete instruction so other user's client removes it too
+      await supabase.from("delete_instructions").insert({
+        message_id: deleteDialog.messageId,
+        conversation_id: conversationId,
+        initiated_by: currentUserId,
+      });
+
+      // 2. Delete the actual message from DB
       await supabase
         .from("messages")
         .delete()
         .eq("id", deleteDialog.messageId);
       
-      // Remove from local state immediately
+      // 3. Remove from local state immediately
       setMessages(prev => prev.filter(m => m.id !== deleteDialog.messageId));
       
       toast({
@@ -1000,6 +973,66 @@ const Chat = () => {
         title: "Error",
         description: error.message,
       });
+    }
+  };
+
+  const handleVoiceSend = async (blob: Blob, duration: number) => {
+    if (!conversationId || !currentUserId) return;
+
+    const tempId = generateTempId();
+    const localUrl = URL.createObjectURL(blob);
+
+    // Optimistic message with voice type
+    const optimisticMessage: Message = {
+      id: tempId,
+      content: JSON.stringify({ url: localUrl, duration }),
+      message_type: "voice",
+      sender_id: currentUserId,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      reactions: [],
+      reply_to: replyingTo?.id || null,
+      _isOptimistic: true,
+      _tempId: tempId,
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+    setReplyingTo(null);
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToBottom("smooth")));
+
+    try {
+      const fileName = `${conversationId}/voice_${Date.now()}.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from("chat-attachments")
+        .upload(fileName, blob, { contentType: "audio/webm" });
+
+      if (uploadError) throw uploadError;
+
+      // Store the storage path reference (not public URL) since bucket is private
+      // Format: storage://chat-attachments/<path> so player can create signed URLs
+      const storagePath = `storage://chat-attachments/${fileName}`;
+      const contentPayload = JSON.stringify({ url: storagePath, duration });
+
+      const { data: messageData, error } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: currentUserId,
+        content: contentPayload,
+        message_type: "voice",
+        reply_to: replyingTo?.id || null,
+      }).select().single();
+
+      if (error) throw error;
+
+      setMessages(prev => prev.map(m =>
+        m._tempId === tempId
+          ? { ...messageData, reactions: [], _isOptimistic: false, _tempId: undefined, _isFailed: undefined }
+          : m
+      ));
+    } catch (error: any) {
+      setMessages(prev => prev.map(m =>
+        m._tempId === tempId ? { ...m, _isFailed: true } : m
+      ));
+      toast({ variant: "destructive", title: "Failed to send voice message" });
     }
   };
 
@@ -1391,6 +1424,21 @@ const Chat = () => {
                         >
                           {message.deleted_for_everyone ? (
                             <p className="italic text-muted-foreground">This message was deleted</p>
+                          ) : message.message_type === "voice" ? (
+                            (() => {
+                              let voiceData = { url: "", duration: 0 };
+                              try { voiceData = JSON.parse(message.content); } catch {}
+                              return (
+                                <VoiceMessagePlayer
+                                  mediaUrl={voiceData.url}
+                                  messageId={message.id}
+                                  isSent={isSent}
+                                  currentUserId={currentUserId}
+                                  senderId={message.sender_id}
+                                  duration={voiceData.duration}
+                                />
+                              );
+                            })()
                           ) : isImage ? (
                             <img
                               src={message.content}
@@ -1463,25 +1511,6 @@ const Chat = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Typing Indicator */}
-        <AnimatePresence>
-          {otherUserTyping && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-4 py-2 flex items-center gap-2"
-            >
-              <div className="flex gap-1">
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-              <span className="text-xs text-muted-foreground">{otherUser?.full_name} is typing...</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Input */}
         <div className="bg-card/95 backdrop-blur-xl border-t border-border/30 flex-shrink-0 relative pb-safe-bottom">
           {/* Smart Replies */}
@@ -1547,14 +1576,18 @@ const Chat = () => {
             >
               <Clock className="w-5 h-5" />
             </Button>
-            <Button
-              type="submit"
-              disabled={!newMessage.trim()}
-              className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
-              size="icon"
-            >
-              <Send className="w-5 h-5" />
-            </Button>
+            {newMessage.trim() ? (
+              <Button
+                type="submit"
+                disabled={sending}
+                className="flex-shrink-0 h-12 w-12 rounded-full gradient-primary hover:opacity-90 text-white shadow-lg"
+                size="icon"
+              >
+                <Send className="w-5 h-5" />
+              </Button>
+            ) : (
+              <VoiceRecorder onSend={handleVoiceSend} disabled={sending} />
+            )}
           </form>
         </div>
       </div>
