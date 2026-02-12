@@ -56,7 +56,11 @@ const VoiceRecorder = ({ onSend, disabled }: VoiceRecorderProps) => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         if (blob.size > 0) {
           setRecordedBlob(blob);
-          setRecordedDuration(recordingDuration);
+          // Use functional update to capture the latest recordingDuration
+          setRecordingDuration(prev => {
+            setRecordedDuration(prev);
+            return prev;
+          });
         }
         stopRecordingCleanup();
       };
