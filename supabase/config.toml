@@ -2,3 +2,6 @@ project_id = "ptaugoubzjmfsicnhzoo"
 
 [functions.cleanup-expired-data]
 verify_jwt = false
+
+[functions.generate-zego-token]
+verify_jwt = false

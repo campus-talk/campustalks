@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { useJitsiCall } from "@/hooks/useJitsiCall";
+import { useZegoCall } from "@/hooks/useZegoCall";
 import { useAppStore } from "@/stores/appStore";
 import { useScrollPosition } from "@/hooks/useScrollPosition";
 
@@ -19,7 +19,7 @@ const CallsTab = memo(() => {
   // Preserve scroll position across tab switches
   useScrollPosition('calls-tab', scrollRef);
 
-  const { startCall, startAudioCall } = useJitsiCall(currentUserId);
+  const { startCall, startAudioCall } = useZegoCall(currentUserId);
 
   // Fetch data on mount (cache-first)
   useEffect(() => {
