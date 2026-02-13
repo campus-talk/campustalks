@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { format } from "date-fns";
-import { usePeerConnection } from "@/hooks/usePeerConnection";
+import { useZegoCall } from "@/hooks/useZegoCall";
 
 interface CallLog {
   id: string;
@@ -29,7 +29,7 @@ const Calls = () => {
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
-  const peerConnection = usePeerConnection(currentUserId);
+  const { startCall, startAudioCall } = useZegoCall(currentUserId);
 
   useEffect(() => {
     fetchCalls();
@@ -92,9 +92,9 @@ const Calls = () => {
     const otherUserId = call.caller_id === currentUserId ? call.receiver_id : call.caller_id;
     
     if (call.call_type === "video") {
-      peerConnection.startCall(otherUserId, true);
+      startCall(otherUserId, true);
     } else {
-      peerConnection.startAudioCall(otherUserId);
+      startAudioCall(otherUserId);
     }
   };
 

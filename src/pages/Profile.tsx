@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, MessageCircle, Video, Phone, UserX, UserCheck, Lock, SendHorizontal, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { usePeerConnection } from "@/hooks/usePeerConnection";
-import IncomingCallModal from "@/components/IncomingCallModal";
-import VideoCallScreen from "@/components/VideoCallScreen";
+import { useZegoCall } from "@/hooks/useZegoCall";
+import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
+import ZegoCallScreen from "@/components/ZegoCallScreen";
 
 interface Profile {
   id: string;
@@ -41,15 +41,20 @@ const Profile = () => {
     endCall,
     toggleCamera,
     toggleMic,
+    toggleScreenShare,
     switchCamera,
     isCameraOn,
     isMicOn,
     isVideoCall,
+    isScreenSharing,
     localStream,
-    remoteStream,
+    remoteStreams,
     incomingCall,
     isInCall,
-  } = usePeerConnection(currentUserId);
+    callState,
+    callConfig,
+    formattedDuration,
+  } = useZegoCall(currentUserId);
 
   useEffect(() => {
     fetchProfile();
@@ -319,27 +324,30 @@ const Profile = () => {
   return (
     <>
       {/* Incoming Call Modal */}
-      <IncomingCallModal
-        isOpen={!!incomingCall}
-        callerName={incomingCall?.callerName || ""}
-        callerAvatar={incomingCall?.callerAvatar || null}
+      <IncomingCallModalJitsi
+        incomingCall={incomingCall}
         onAccept={acceptCall}
         onDecline={declineCall}
       />
 
-      {/* Video Call Screen */}
+      {/* Zego Call Screen */}
       <AnimatePresence>
         {isInCall && (
-          <VideoCallScreen
+          <ZegoCallScreen
+            callConfig={callConfig}
+            callState={callState}
             localStream={localStream}
-            remoteStream={remoteStream}
-        onEndCall={endCall}
-        onToggleCamera={toggleCamera}
-        onToggleMic={toggleMic}
-        onSwitchCamera={switchCamera}
+            remoteStreams={remoteStreams}
+            onEndCall={endCall}
+            onToggleCamera={toggleCamera}
+            onToggleMic={toggleMic}
+            onToggleScreenShare={toggleScreenShare}
+            onSwitchCamera={switchCamera}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}
+            isScreenSharing={isScreenSharing}
+            formattedDuration={formattedDuration}
           />
         )}
       </AnimatePresence>

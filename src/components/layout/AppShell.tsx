@@ -7,20 +7,7 @@ import { useAppStore } from "@/stores/appStore";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import SyncIndicator from "@/components/SyncIndicator";
 
-// PRELOAD JITSI SCRIPT ON APP STARTUP - Critical for instant calls
-const preloadJitsiScript = () => {
-  if (typeof window !== 'undefined' && !document.getElementById('jitsi-api-script')) {
-    const script = document.createElement('script');
-    script.id = 'jitsi-api-script';
-    script.src = 'https://meet.jit.si/external_api.js';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  }
-};
-
-// Execute immediately on module load
-preloadJitsiScript();
+// ZegoCloud SDK is lazy-loaded when a call is initiated
 
 // Tab routes that use the persistent shell
 const TAB_ROUTES = ["/conversations", "/groups", "/calls", "/settings"];

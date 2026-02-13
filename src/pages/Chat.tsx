@@ -8,9 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
-import { useJitsiCall } from "@/hooks/useJitsiCall";
+import { useZegoCall } from "@/hooks/useZegoCall";
 import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
-import JitsiCallScreen from "@/components/JitsiCallScreen";
+import ZegoCallScreen from "@/components/ZegoCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
@@ -130,8 +130,9 @@ const Chat = () => {
     callState,
     callConfig,
     formattedDuration,
-    initializeJitsi,
-  } = useJitsiCall(currentUserId);
+    localStream,
+    remoteStreams,
+  } = useZegoCall(currentUserId);
 
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
@@ -1148,22 +1149,24 @@ const Chat = () => {
         onDecline={declineCall}
       />
 
-      {/* Jitsi Call Screen */}
+      {/* Zego Call Screen */}
       <AnimatePresence>
         {isInCall && (
-          <JitsiCallScreen
+          <ZegoCallScreen
             callConfig={callConfig}
             callState={callState}
             onEndCall={endCall}
             onToggleCamera={toggleCamera}
             onToggleMic={toggleMic}
             onToggleScreenShare={toggleScreenShare}
+            onSwitchCamera={switchCamera}
             isCameraOn={isCameraOn}
             isMicOn={isMicOn}
             isVideoCall={isVideoCall}
             isScreenSharing={isScreenSharing}
             formattedDuration={formattedDuration}
-            onInitialize={initializeJitsi}
+            localStream={localStream}
+            remoteStreams={remoteStreams}
           />
         )}
       </AnimatePresence>
