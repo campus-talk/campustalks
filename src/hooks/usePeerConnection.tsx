@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+// @ts-ignore - peerjs may not be installed
 import Peer, { MediaConnection } from "peerjs";
 import { supabase } from "@/integrations/supabase/client";
 

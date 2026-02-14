@@ -37,6 +37,8 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         // Cache app shell and static assets
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
+        navigateFallbackDenylist: [/^\/~oauth/],
         runtimeCaching: [
           {
             // Cache API calls with network-first strategy
