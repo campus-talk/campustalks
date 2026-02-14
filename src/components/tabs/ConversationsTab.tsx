@@ -208,6 +208,8 @@ const ConversationsTab = memo(() => {
                       {conv.lastMessage
                         ? conv.lastMessage.message_type === "image"
                           ? "📷 Photo"
+                          : conv.lastMessage.message_type === "voice"
+                          ? "🎤 Voice message"
                           : conv.lastMessage.content
                         : "No messages yet"}
                     </p>
