@@ -19,6 +19,7 @@ import SettingsTab from "@/components/tabs/SettingsTab";
 // Lazy load ONLY deep/secondary pages
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const ProfileSetup = lazy(() => import("./pages/ProfileSetup"));
 const Home = lazy(() => import("./pages/Home"));
 const Chat = lazy(() => import("./pages/Chat"));
@@ -68,6 +69,7 @@ const App = () => {
             {/* Public routes - lazy loaded with minimal fallback */}
             <Route path="/" element={<Suspense fallback={<LazyLoadFallback />}><Index /></Suspense>} />
             <Route path="/auth" element={<Suspense fallback={<LazyLoadFallback />}><Auth /></Suspense>} />
+            <Route path="/auth/v1/callback" element={<Suspense fallback={<LazyLoadFallback />}><AuthCallback /></Suspense>} />
             <Route path="/profile-setup" element={<Suspense fallback={<LazyLoadFallback />}><ProfileSetup /></Suspense>} />
             <Route path="/home" element={<Suspense fallback={<LazyLoadFallback />}><Home /></Suspense>} />
 

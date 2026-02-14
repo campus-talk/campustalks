@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "co.median.android.odmpjml",
+      "sha256_cert_fingerprints": [
+        "B3:64:59:30:91:FD:7F:F8:9E:B0:72:2C:E9:AE:F3:B1:A0:F1:71:9B:1D:19:99:7A:B4:FA:C0:D2:D3:18:39:D1"
+      ]
+    }
+  }
+]
