@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { restoreSessionFromDeepLink } from "@/lib/median";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -11,6 +12,9 @@ const Index = () => {
   }, []);
 
   const checkAuth = async () => {
+    // Try restoring session from deep link tokens first
+    await restoreSessionFromDeepLink(supabase);
+
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {

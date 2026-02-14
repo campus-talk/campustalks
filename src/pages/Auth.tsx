@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { isMedianApp } from "@/lib/median";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,10 +191,28 @@ const Auth = () => {
               className="w-full h-12 text-base font-medium gap-3"
               disabled={loading}
               onClick={async () => {
-                const { error } = await lovable.auth.signInWithOAuth("google", {
-                  redirect_uri: window.location.origin,
-                });
-                if (error) {
+                try {
+                  if (isMedianApp()) {
+                    // Median webview: use Supabase directly with skipBrowserRedirect
+                    const { data, error } = await supabase.auth.signInWithOAuth({
+                      provider: "google",
+                      options: {
+                        redirectTo: "https://campustalks.lovable.app/auth/v1/callback",
+                        skipBrowserRedirect: true,
+                      },
+                    });
+                    if (error) throw error;
+                    if (data?.url) {
+                      window.location.href = data.url;
+                    }
+                  } else {
+                    // Normal web: use Lovable managed OAuth
+                    const { error } = await lovable.auth.signInWithOAuth("google", {
+                      redirect_uri: window.location.origin,
+                    });
+                    if (error) throw error;
+                  }
+                } catch (error: any) {
                   toast({ variant: "destructive", title: "Error", description: error.message });
                 }
               }}
