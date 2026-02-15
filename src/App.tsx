@@ -69,7 +69,7 @@ const App = () => {
             {/* Public routes - lazy loaded with minimal fallback */}
             <Route path="/" element={<Suspense fallback={<LazyLoadFallback />}><Index /></Suspense>} />
             <Route path="/auth" element={<Suspense fallback={<LazyLoadFallback />}><Auth /></Suspense>} />
-            <Route path="/auth/v1/callback" element={<Suspense fallback={<LazyLoadFallback />}><AuthCallback /></Suspense>} />
+            <Route path="/auth/callback" element={<Suspense fallback={<LazyLoadFallback />}><AuthCallback /></Suspense>} />
             <Route path="/profile-setup" element={<Suspense fallback={<LazyLoadFallback />}><ProfileSetup /></Suspense>} />
             <Route path="/home" element={<Suspense fallback={<LazyLoadFallback />}><Home /></Suspense>} />
 
