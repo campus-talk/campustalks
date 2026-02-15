@@ -27,7 +27,7 @@ const AuthCallback = () => {
           const deepLink = `campustalks://auth-callback?access_token=${encodeURIComponent(
             session.access_token
           )}&refresh_token=${encodeURIComponent(session.refresh_token)}`;
-          window.location.href = deepLink;
+          window.location.replace(deepLink);
           return;
         }
 

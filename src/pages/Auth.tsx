@@ -197,7 +197,7 @@ const Auth = () => {
                     const { data, error } = await supabase.auth.signInWithOAuth({
                       provider: "google",
                       options: {
-                        redirectTo: "https://campustalks.lovable.app/auth/v1/callback",
+                        redirectTo: "https://campustalks.lovable.app/auth/callback",
                         skipBrowserRedirect: true,
                       },
                     });
