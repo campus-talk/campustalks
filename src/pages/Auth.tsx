@@ -25,43 +25,68 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         
-        if (error) throw error;
-        
-        toast({
-          title: "Welcome back!",
-          description: "You've successfully logged in.",
-        });
-        navigate("/");
+        if (error) {
+          // Handle specific error messages for better UX
+          let message = error.message;
+          if (message.includes("Invalid login")) message = "गलत email या password। कृपया दोबारा कोशिश करें।";
+          if (message.includes("Email not confirmed")) message = "कृपया पहले अपना email verify करें।";
+          toast({ variant: "destructive", title: "Login Failed", description: message });
+          setLoading(false);
+          return;
+        }
+
+        if (data?.session) {
+          toast({ title: "Welcome back!", description: "You've successfully logged in." });
+          navigate("/conversations");
+        } else {
+          toast({ variant: "destructive", title: "Error", description: "Login failed. Please try again." });
+        }
       } else {
-        const { error } = await supabase.auth.signUp({
+        if (!fullName.trim()) {
+          toast({ variant: "destructive", title: "Error", description: "Please enter your name." });
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: {
-              full_name: fullName,
-            },
+            data: { full_name: fullName },
             emailRedirectTo: `${window.location.origin}/`,
           },
         });
         
-        if (error) throw error;
-        
-        toast({
-          title: "Account created!",
-          description: "Please complete your profile setup.",
-        });
-        navigate("/profile-setup");
+        if (error) {
+          let message = error.message;
+          if (message.includes("already registered")) message = "यह email पहले से registered है। कृपया login करें।";
+          toast({ variant: "destructive", title: "Signup Failed", description: message });
+          setLoading(false);
+          return;
+        }
+
+        // Check if email confirmation is needed
+        if (data?.user && !data.session) {
+          toast({
+            title: "Check your email!",
+            description: "हमने आपको एक verification email भेजा है। कृपया उसे verify करें।",
+          });
+        } else if (data?.session) {
+          toast({ title: "Account created!", description: "Please complete your profile setup." });
+          navigate("/profile-setup");
+        }
       }
     } catch (error: any) {
+      console.error("Auth error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: error?.message || "कुछ गड़बड़ हुई। कृपया दोबारा कोशिश करें।",
       });
     } finally {
       setLoading(false);
