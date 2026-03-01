@@ -39,21 +39,12 @@ const Profile = () => {
     acceptCall,
     declineCall,
     endCall,
-    toggleCamera,
-    toggleMic,
-    toggleScreenShare,
-    switchCamera,
-    isCameraOn,
-    isMicOn,
     isVideoCall,
-    isScreenSharing,
-    localStream,
-    remoteStreams,
     incomingCall,
     isInCall,
     callState,
     callConfig,
-    formattedDuration,
+    currentUserId: zegoUserId,
   } = useZegoCall(currentUserId);
 
   useEffect(() => {

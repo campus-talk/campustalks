@@ -116,22 +116,12 @@ const Chat = () => {
     acceptCall,
     declineCall,
     endCall,
-    toggleCamera,
-    toggleMic,
-    toggleScreenShare,
-    switchCamera,
-    isCameraOn,
-    isMicOn,
     isVideoCall,
-    isScreenSharing,
-    isFrontCamera,
     incomingCall,
     isInCall,
     callState,
     callConfig,
-    formattedDuration,
-    localStream,
-    remoteStreams,
+    currentUserId: zegoUserId,
   } = useZegoCall(currentUserId);
 
   useEffect(() => {
