@@ -39,21 +39,12 @@ const Profile = () => {
     acceptCall,
     declineCall,
     endCall,
-    toggleCamera,
-    toggleMic,
-    toggleScreenShare,
-    switchCamera,
-    isCameraOn,
-    isMicOn,
     isVideoCall,
-    isScreenSharing,
-    localStream,
-    remoteStreams,
     incomingCall,
     isInCall,
     callState,
     callConfig,
-    formattedDuration,
+    currentUserId: zegoUserId,
   } = useZegoCall(currentUserId);
 
   useEffect(() => {
@@ -336,18 +327,9 @@ const Profile = () => {
           <ZegoCallScreen
             callConfig={callConfig}
             callState={callState}
-            localStream={localStream}
-            remoteStreams={remoteStreams}
-            onEndCall={endCall}
-            onToggleCamera={toggleCamera}
-            onToggleMic={toggleMic}
-            onToggleScreenShare={toggleScreenShare}
-            onSwitchCamera={switchCamera}
-            isCameraOn={isCameraOn}
-            isMicOn={isMicOn}
             isVideoCall={isVideoCall}
-            isScreenSharing={isScreenSharing}
-            formattedDuration={formattedDuration}
+            currentUserId={currentUserId}
+            onEndCall={endCall}
           />
         )}
       </AnimatePresence>
