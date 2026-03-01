@@ -16,7 +16,7 @@ interface ActiveCall {
   participant_count: number;
 }
 
-interface ZegoCallConfig {
+export interface ZegoCallConfig {
   roomName: string;
   displayName: string;
   avatarUrl?: string;
@@ -26,7 +26,7 @@ interface ZegoCallConfig {
   callId?: string;
 }
 
-interface IncomingCallData {
+export interface IncomingCallData {
   callId: string;
   callerId: string;
   callerName: string;
@@ -37,17 +37,8 @@ interface IncomingCallData {
 }
 
 const ZEGO_APP_ID = 884450076;
-const ZEGO_SERVER = 'wss://webliveroom884450076-api.coolzcloud.com/ws';
-
-let zegoEngine: any = null;
-let zegoTokenCache: { token: string; expiry: number } | null = null;
 
 async function getZegoToken(): Promise<string> {
-  // Return cached token if still valid (with 5min buffer)
-  if (zegoTokenCache && zegoTokenCache.expiry > Date.now() + 300000) {
-    return zegoTokenCache.token;
-  }
-
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Not authenticated');
 
@@ -56,35 +47,18 @@ async function getZegoToken(): Promise<string> {
   });
 
   if (error || !data?.token) throw new Error('Token generation failed');
-
-  zegoTokenCache = {
-    token: data.token,
-    expiry: Date.now() + 82800000, // ~23 hours
-  };
-
   return data.token;
 }
 
-async function getEngine(): Promise<any> {
-  if (zegoEngine) return zegoEngine;
-
-  const { ZegoExpressEngine } = await import('zego-express-engine-webrtc');
-  zegoEngine = new ZegoExpressEngine(ZEGO_APP_ID, ZEGO_SERVER);
-  return zegoEngine;
-}
+export { ZEGO_APP_ID, getZegoToken };
 
 export const useZegoCall = (currentUserId: string) => {
   const [callState, setCallState] = useState<CallState>('idle');
   const [isInCall, setIsInCall] = useState(false);
   const [isVideoCall, setIsVideoCall] = useState(true);
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isCameraOn, setIsCameraOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callConfig, setCallConfig] = useState<ZegoCallConfig | null>(null);
   const [incomingCall, setIncomingCall] = useState<IncomingCallData | null>(null);
   const [callDuration, setCallDuration] = useState(0);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
 
   const callStartTimeRef = useRef<number | null>(null);
   const incomingRingtone = useRef<HTMLAudioElement | null>(null);
@@ -93,8 +67,6 @@ export const useZegoCall = (currentUserId: string) => {
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
 
   const { toast } = useToast();
 
@@ -162,94 +134,6 @@ export const useZegoCall = (currentUserId: string) => {
   }, [callState]);
 
   // ==========================================
-  // ZEGO ENGINE: Setup event listeners
-  // ==========================================
-  const setupZegoListeners = useCallback(async () => {
-    const engine = await getEngine();
-
-    engine.on('roomStreamUpdate', async (_roomID: string, updateType: string, streamList: any[]) => {
-      if (updateType === 'ADD') {
-        for (const stream of streamList) {
-          try {
-            const remoteStream = await engine.startPlayingStream(stream.streamID);
-            setRemoteStreams(prev => {
-              const next = new Map(prev);
-              next.set(stream.streamID, remoteStream);
-              return next;
-            });
-          } catch (e) {
-            console.error('Failed to play remote stream:', e);
-          }
-        }
-      } else if (updateType === 'DELETE') {
-        for (const stream of streamList) {
-          engine.stopPlayingStream(stream.streamID);
-          setRemoteStreams(prev => {
-            const next = new Map(prev);
-            next.delete(stream.streamID);
-            return next;
-          });
-        }
-      }
-    });
-
-    engine.on('roomStateChanged', (_roomID: string, reason: string, _errorCode: number) => {
-      if (reason === 'LOGOUT' || reason === 'KICK_OUT') {
-        console.log('📞 Zego room disconnected:', reason);
-      }
-    });
-
-    engine.on('publisherStateUpdate', (result: any) => {
-      console.log('📞 Publisher state:', result.state);
-    });
-
-    engine.on('playerStateUpdate', (result: any) => {
-      console.log('📞 Player state:', result.state);
-    });
-  }, []);
-
-  // ==========================================
-  // CONNECT TO ZEGO ROOM
-  // ==========================================
-  const connectToZegoRoom = useCallback(async (roomName: string, isVideo: boolean) => {
-    try {
-      const engine = await getEngine();
-      await setupZegoListeners();
-
-      const token = await getZegoToken();
-
-      // Login to room
-      await engine.loginRoom(roomName, token, {
-        userID: currentUserId,
-        userName: callConfig?.displayName || 'User',
-      }, { userUpdate: true });
-
-      // Create and publish local stream
-      const stream = await engine.createStream({
-        camera: {
-          audio: true,
-          video: isVideo,
-          videoQuality: 4, // 720p
-          width: 1280,
-          height: 720,
-          frameRate: 30,
-        },
-      });
-
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-
-      const streamID = `${currentUserId}_main`;
-      await engine.startPublishingStream(streamID, stream);
-
-      console.log('✅ Zego: Connected and publishing');
-    } catch (error) {
-      console.error('Zego connection error:', error);
-      toast({ variant: 'destructive', title: 'Call failed', description: 'Could not connect to call' });
-    }
-  }, [currentUserId, callConfig, setupZegoListeners, toast]);
-
-  // ==========================================
   // REALTIME: Listen for incoming calls
   // ==========================================
   useEffect(() => {
@@ -306,14 +190,12 @@ export const useZegoCall = (currentUserId: string) => {
       }, (payload) => {
         const call = payload.new as ActiveCall;
 
-        // Handle state changes for CALLER
         if (call.initiated_by === currentUserId) {
           switch (call.call_state) {
             case 'ringing':
               setCallState('ringing');
               break;
             case 'accepted':
-              console.log('✅ Call accepted - connecting to Zego');
               stopAllRingtones();
               clearCallTimeout();
               setCallState('accepted');
@@ -337,7 +219,6 @@ export const useZegoCall = (currentUserId: string) => {
           }
         }
 
-        // Handle state changes for RECEIVER
         if (call.receiver_id === currentUserId || call.initiated_by !== currentUserId) {
           if (call.call_state === 'ended' || call.call_state === 'missed') {
             stopAllRingtones();
@@ -363,15 +244,6 @@ export const useZegoCall = (currentUserId: string) => {
   }, [currentUserId, playIncomingRingtone, stopAllRingtones, clearCallTimeout, toast]);
 
   // ==========================================
-  // CONNECT when call state becomes accepted
-  // ==========================================
-  useEffect(() => {
-    if (callState === 'accepted' && callConfig?.roomName) {
-      connectToZegoRoom(callConfig.roomName, callConfig.isVideoCall);
-    }
-  }, [callState, callConfig?.roomName, callConfig?.isVideoCall, connectToZegoRoom]);
-
-  // ==========================================
   // START CALL
   // ==========================================
   const startCall = useCallback(async (
@@ -390,11 +262,8 @@ export const useZegoCall = (currentUserId: string) => {
 
     setCallState('calling');
     setIsVideoCall(isVideo);
-    setIsCameraOn(isVideo);
-    setIsMicOn(true);
     setIsInCall(true);
     setCallDuration(0);
-    setIsScreenSharing(false);
 
     const { data: myProfile } = await supabase
       .from('profiles')
@@ -444,7 +313,6 @@ export const useZegoCall = (currentUserId: string) => {
         user_id: currentUserId,
       });
 
-      // Push notification backup
       supabase.functions.invoke('send-push-notification', {
         body: {
           type: 'call',
@@ -456,7 +324,6 @@ export const useZegoCall = (currentUserId: string) => {
         },
       }).catch(() => {});
 
-      // Log call
       await supabase.from('call_logs').insert({
         caller_id: currentUserId,
         receiver_id: otherUserId,
@@ -465,7 +332,6 @@ export const useZegoCall = (currentUserId: string) => {
         call_status: 'initiated',
       });
 
-      // 35s timeout
       callTimeoutRef.current = setTimeout(async () => {
         stopAllRingtones();
         await supabase
@@ -525,8 +391,6 @@ export const useZegoCall = (currentUserId: string) => {
 
     setCallState('accepted');
     setIsVideoCall(incomingCall.isVideo);
-    setIsCameraOn(incomingCall.isVideo);
-    setIsMicOn(true);
     setIsInCall(true);
     setCallDuration(0);
     activeCallIdRef.current = incomingCall.callId;
@@ -586,8 +450,6 @@ export const useZegoCall = (currentUserId: string) => {
 
     setCallState('accepted');
     setIsVideoCall(isVideo);
-    setIsCameraOn(isVideo);
-    setIsMicOn(true);
     setIsInCall(true);
     setCallDuration(0);
 
@@ -611,7 +473,7 @@ export const useZegoCall = (currentUserId: string) => {
   }, [currentUserId]);
 
   // ==========================================
-  // END CALL
+  // END CALL (called by UIKit or manually)
   // ==========================================
   const endCall = useCallback(async () => {
     clearCallTimeout();
@@ -620,39 +482,6 @@ export const useZegoCall = (currentUserId: string) => {
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;
-    }
-
-    // Stop local streams
-    if (localStreamRef.current) {
-      const tracks = localStreamRef.current.getTracks();
-      tracks.forEach(track => track.stop());
-      localStreamRef.current = null;
-      setLocalStream(null);
-    }
-
-    if (screenStreamRef.current) {
-      const tracks = screenStreamRef.current.getTracks();
-      tracks.forEach(track => track.stop());
-      screenStreamRef.current = null;
-    }
-
-    // Cleanup Zego
-    try {
-      const engine = await getEngine();
-      engine.stopPublishingStream(`${currentUserId}_main`);
-      engine.stopPublishingStream(`${currentUserId}_screen`);
-      
-      // Stop all remote streams
-      remoteStreams.forEach((_stream, streamID) => {
-        engine.stopPlayingStream(streamID);
-      });
-      setRemoteStreams(new Map());
-
-      if (callConfig?.roomName) {
-        await engine.logoutRoom(callConfig.roomName);
-      }
-    } catch (e) {
-      console.log('Zego cleanup error:', e);
     }
 
     // Update DB
@@ -696,87 +525,9 @@ export const useZegoCall = (currentUserId: string) => {
     setIsInCall(false);
     setCallConfig(null);
     setCallDuration(0);
-    setIsScreenSharing(false);
     callStartTimeRef.current = null;
     activeCallIdRef.current = null;
-  }, [callConfig, currentUserId, clearCallTimeout, stopAllRingtones, remoteStreams]);
-
-  // ==========================================
-  // CONTROLS
-  // ==========================================
-  const toggleMic = useCallback(async () => {
-    try {
-      const engine = await getEngine();
-      const newState = !isMicOn;
-      engine.muteMicrophone(!newState);
-      setIsMicOn(newState);
-    } catch (e) {
-      console.error('Toggle mic error:', e);
-    }
-  }, [isMicOn]);
-
-  const toggleCamera = useCallback(async () => {
-    try {
-      const engine = await getEngine();
-      const newState = !isCameraOn;
-      if (localStreamRef.current) {
-        await engine.mutePublishStreamVideo(localStreamRef.current, !newState);
-      }
-      setIsCameraOn(newState);
-    } catch (e) {
-      console.error('Toggle camera error:', e);
-    }
-  }, [isCameraOn]);
-
-  const toggleScreenShare = useCallback(async () => {
-    try {
-      const engine = await getEngine();
-      if (isScreenSharing) {
-        // Stop screen sharing
-        engine.stopPublishingStream(`${currentUserId}_screen`);
-        if (screenStreamRef.current) {
-          screenStreamRef.current.getTracks().forEach(t => t.stop());
-          screenStreamRef.current = null;
-        }
-        setIsScreenSharing(false);
-      } else {
-        // Start screen sharing
-        const screenStream = await engine.createStream({ screen: { audio: true, video: true } });
-        screenStreamRef.current = screenStream;
-        await engine.startPublishingStream(`${currentUserId}_screen`, screenStream);
-        setIsScreenSharing(true);
-      }
-
-      if (activeCallIdRef.current) {
-        supabase
-          .from('call_participants')
-          .update({ is_screen_sharing: !isScreenSharing })
-          .eq('call_id', activeCallIdRef.current)
-          .eq('user_id', currentUserId)
-          .then(() => {});
-      }
-    } catch (e) {
-      console.error('Screen share error:', e);
-      toast({ variant: 'destructive', title: 'Screen share failed' });
-    }
-  }, [isScreenSharing, currentUserId, toast]);
-
-  const switchCamera = useCallback(async () => {
-    try {
-      const engine = await getEngine();
-      const devices = await engine.enumDevices();
-      const videoDevices = devices?.cameras || [];
-      if (videoDevices.length > 1) {
-        // Cycle through cameras
-        // ZegoExpressEngine handles this internally
-        if (localStreamRef.current) {
-          await engine.useVideoDevice(localStreamRef.current, videoDevices[1].deviceID);
-        }
-      }
-    } catch (e) {
-      console.error('Switch camera error:', e);
-    }
-  }, []);
+  }, [callConfig, currentUserId, clearCallTimeout, stopAllRingtones]);
 
   const inviteToCall = useCallback(async (userIds: string[]) => {
     if (!callConfig?.conversationId || !callConfig.roomName) return;
@@ -823,15 +574,11 @@ export const useZegoCall = (currentUserId: string) => {
     callState,
     isInCall,
     isVideoCall,
-    isMicOn,
-    isCameraOn,
-    isScreenSharing,
     incomingCall,
     callConfig,
     callDuration,
     formattedDuration: formatDuration(callDuration),
-    localStream,
-    remoteStreams,
+    currentUserId,
 
     startCall,
     startAudioCall,
@@ -839,15 +586,6 @@ export const useZegoCall = (currentUserId: string) => {
     acceptCall,
     declineCall,
     endCall,
-    toggleMic,
-    toggleCamera,
-    toggleScreenShare,
-    switchCamera,
     inviteToCall,
-
-    // Compatibility (no longer needed but kept for interface)
-    remoteStream: remoteStreams.size > 0 ? Array.from(remoteStreams.values())[0] : null,
-    isFrontCamera: true,
-    participants: [],
   };
 };
