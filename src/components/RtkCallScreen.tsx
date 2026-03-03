@@ -1,10 +1,12 @@
-import { useEffect, useRef, memo, useState } from 'react';
+import { useEffect, memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhoneOff, Loader2, Video, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { CallState, CallConfig } from '@/hooks/useRealtimeKitCall';
 import { getRtkToken } from '@/hooks/useRealtimeKitCall';
+import { useRealtimeKitClient, RealtimeKitProvider } from '@cloudflare/realtimekit-react';
+import { RtkMeeting } from '@cloudflare/realtimekit-react-ui';
 
 interface RtkCallScreenProps {
   callConfig: CallConfig | null;
@@ -14,6 +16,37 @@ interface RtkCallScreenProps {
   onEndCall: () => void;
 }
 
+/** Inner component that renders the actual RTK meeting UI */
+const RtkMeetingView = memo(({ meeting, onEndCall }: { meeting: any; onEndCall: () => void }) => {
+  useEffect(() => {
+    if (!meeting) return;
+
+    const handleRoomLeft = () => {
+      onEndCall();
+    };
+
+    meeting.self?.on?.('roomLeft', handleRoomLeft);
+    
+    return () => {
+      meeting.self?.off?.('roomLeft', handleRoomLeft);
+    };
+  }, [meeting, onEndCall]);
+
+  if (!meeting) return null;
+
+  return (
+    <RealtimeKitProvider value={meeting}>
+      <RtkMeeting
+        meeting={meeting}
+        mode="fill"
+        showSetupScreen={false}
+      />
+    </RealtimeKitProvider>
+  );
+});
+
+RtkMeetingView.displayName = 'RtkMeetingView';
+
 const RtkCallScreen = memo(({
   callConfig,
   callState,
@@ -21,8 +54,7 @@ const RtkCallScreen = memo(({
   currentUserId,
   onEndCall,
 }: RtkCallScreenProps) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const meetingRef = useRef<any>(null);
+  const [meeting, initMeeting] = useRealtimeKitClient();
   const [uikitReady, setUikitReady] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -35,7 +67,7 @@ const RtkCallScreen = memo(({
     const initRtk = async () => {
       try {
         setInitError(null);
-        
+
         // Get RTK auth token from our edge function
         const { authToken } = await getRtkToken(
           callConfig.roomName,
@@ -45,26 +77,23 @@ const RtkCallScreen = memo(({
 
         if (cancelled) return;
 
-        // Dynamically import RTK React SDK
-        const { useRealtimeKitClient } = await import('@cloudflare/realtimekit-react');
-        const { RtkMeeting } = await import('@cloudflare/realtimekit-react-ui');
+        // Initialize the meeting with the authToken
+        await initMeeting({
+          authToken,
+          defaults: {
+            audio: true,
+            video: isVideoCall,
+          },
+        });
 
-        if (cancelled || !containerRef.current) return;
-
-        // For non-React hook usage, we use the web SDK directly
-        const RealtimeKitClient = (await import('@cloudflare/realtimekit-react')).default;
-        
-        // Initialize meeting with authToken
-        // Since we can't use hooks outside React components, we use the imperative API
-        const meetingInstance = await (window as any).__rtkInit?.(authToken);
-        
-        if (meetingInstance) {
-          meetingRef.current = meetingInstance;
+        if (!cancelled) {
           setUikitReady(true);
         }
       } catch (error: any) {
         console.error('RTK init error:', error);
-        setInitError(error.message || 'Failed to connect');
+        if (!cancelled) {
+          setInitError(error.message || 'Failed to connect');
+        }
       }
     };
 
@@ -72,18 +101,18 @@ const RtkCallScreen = memo(({
 
     return () => {
       cancelled = true;
-      if (meetingRef.current) {
+      // Leave room on cleanup
+      if (meeting) {
         try {
-          meetingRef.current.leaveRoom?.();
+          meeting.leaveRoom?.();
         } catch (e) {
           console.log('RTK cleanup:', e);
         }
-        meetingRef.current = null;
       }
       setUikitReady(false);
       setInitError(null);
     };
-  }, [callState, callConfig?.roomName, currentUserId, callConfig?.displayName, isVideoCall, onEndCall]);
+  }, [callState, callConfig?.roomName, currentUserId, callConfig?.displayName, isVideoCall]);
 
   if (!callConfig) return null;
 
@@ -103,7 +132,7 @@ const RtkCallScreen = memo(({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-[#0f0f23] z-50 flex flex-col"
+      className="fixed inset-0 bg-background z-50 flex flex-col"
     >
       {/* Waiting/Ringing UI */}
       <AnimatePresence>
@@ -112,7 +141,7 @@ const RtkCallScreen = memo(({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-b from-[#1a1a2e] to-[#0f0f23]"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-b from-muted to-background"
           >
             <div className="relative mb-8">
               <motion.div
@@ -129,21 +158,21 @@ const RtkCallScreen = memo(({
               />
               <Avatar className="w-32 h-32 border-4 border-primary/50 shadow-2xl">
                 <AvatarImage src={callConfig.avatarUrl || ''} />
-                <AvatarFallback className="bg-gradient-to-br from-primary to-purple-600 text-white text-4xl font-bold">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-4xl font-bold">
                   {callConfig.displayName?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-2">{callConfig.displayName}</h2>
-            <div className="flex items-center gap-2 text-white/70">
+            <h2 className="text-2xl font-bold text-foreground mb-2">{callConfig.displayName}</h2>
+            <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-lg">{getCallStatusText()}</span>
             </div>
 
-            <div className="mt-6 flex items-center gap-2 px-4 py-2 rounded-full bg-white/10">
-              {isVideoCall ? <Video className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
-              <span className="text-white/80 text-sm">
+            <div className="mt-6 flex items-center gap-2 px-4 py-2 rounded-full bg-muted">
+              {isVideoCall ? <Video className="w-5 h-5 text-foreground" /> : <Mic className="w-5 h-5 text-foreground" />}
+              <span className="text-muted-foreground text-sm">
                 {isVideoCall ? 'Video Call' : 'Voice Call'}
               </span>
             </div>
@@ -162,19 +191,16 @@ const RtkCallScreen = memo(({
         )}
       </AnimatePresence>
 
-      {/* RTK Meeting Container - shows after accepted */}
-      <div
-        ref={containerRef}
-        id="rtk-meeting-container"
-        className="flex-1 w-full h-full"
-        style={{
-          display: callState === 'accepted' ? 'block' : 'none',
-        }}
-      />
+      {/* RTK Meeting - shows after accepted and initialized */}
+      {callState === 'accepted' && uikitReady && meeting && (
+        <div className="flex-1 w-full h-full">
+          <RtkMeetingView meeting={meeting} onEndCall={onEndCall} />
+        </div>
+      )}
 
       {/* Error state */}
       {initError && callState === 'accepted' && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0f0f23]">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background">
           <p className="text-destructive text-lg mb-4">{initError}</p>
           <Button onClick={onEndCall} variant="destructive" className="rounded-full">
             <PhoneOff className="w-5 h-5 mr-2" />
@@ -185,9 +211,9 @@ const RtkCallScreen = memo(({
 
       {/* Loading overlay while RTK initializes */}
       {callState === 'accepted' && !uikitReady && !initError && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0f0f23]">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background">
           <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
-          <span className="text-white/70 text-lg">Connecting...</span>
+          <span className="text-muted-foreground text-lg">Connecting...</span>
         </div>
       )}
     </motion.div>
