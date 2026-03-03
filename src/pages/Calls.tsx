@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { format } from "date-fns";
-import { useZegoCall } from "@/hooks/useZegoCall";
+import { useRealtimeKitCall } from "@/hooks/useRealtimeKitCall";
 
 interface CallLog {
   id: string;
@@ -29,7 +29,7 @@ const Calls = () => {
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
-  const { startCall, startAudioCall } = useZegoCall(currentUserId);
+  const { startCall, startAudioCall } = useRealtimeKitCall(currentUserId);
 
   useEffect(() => {
     fetchCalls();
