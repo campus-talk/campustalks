@@ -8,9 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Send, Paperclip, Check, CheckCheck, Video, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Star, Clock, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmojiPicker } from "@/components/EmojiPicker";
-import { useZegoCall } from "@/hooks/useZegoCall";
+import { useRealtimeKitCall } from "@/hooks/useRealtimeKitCall";
 import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
-import ZegoCallScreen from "@/components/ZegoCallScreen";
+import RtkCallScreen from "@/components/RtkCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
@@ -121,8 +121,8 @@ const Chat = () => {
     isInCall,
     callState,
     callConfig,
-    currentUserId: zegoUserId,
-  } = useZegoCall(currentUserId);
+    currentUserId: rtkUserId,
+  } = useRealtimeKitCall(currentUserId);
 
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
@@ -1139,10 +1139,10 @@ const Chat = () => {
         onDecline={declineCall}
       />
 
-      {/* Zego Call Screen */}
+      {/* RTK Call Screen */}
       <AnimatePresence>
         {isInCall && (
-          <ZegoCallScreen
+          <RtkCallScreen
             callConfig={callConfig}
             callState={callState}
             isVideoCall={isVideoCall}
