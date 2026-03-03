@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, MessageCircle, Video, Phone, UserX, UserCheck, Lock, SendHorizontal, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useZegoCall } from "@/hooks/useZegoCall";
+import { useRealtimeKitCall } from "@/hooks/useRealtimeKitCall";
 import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
-import ZegoCallScreen from "@/components/ZegoCallScreen";
+import RtkCallScreen from "@/components/RtkCallScreen";
 
 interface Profile {
   id: string;
@@ -44,8 +44,8 @@ const Profile = () => {
     isInCall,
     callState,
     callConfig,
-    currentUserId: zegoUserId,
-  } = useZegoCall(currentUserId);
+    currentUserId: rtkUserId,
+  } = useRealtimeKitCall(currentUserId);
 
   useEffect(() => {
     fetchProfile();
@@ -321,10 +321,10 @@ const Profile = () => {
         onDecline={declineCall}
       />
 
-      {/* Zego Call Screen */}
+      {/* RTK Call Screen */}
       <AnimatePresence>
         {isInCall && (
-          <ZegoCallScreen
+          <RtkCallScreen
             callConfig={callConfig}
             callState={callState}
             isVideoCall={isVideoCall}
