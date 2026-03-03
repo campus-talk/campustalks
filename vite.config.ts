@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  define: {
+    // Route all Supabase calls through Cloudflare proxy to bypass ISP blocks in India
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://ancient-cherry-6faa.ajitpcmandal.workers.dev'),
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
