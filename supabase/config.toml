@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.generate-zego-token]
 verify_jwt = false
+
+[functions.generate-agora-token]
+verify_jwt = false
