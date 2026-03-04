@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, MessageCircle, Video, Phone, UserX, UserCheck, Lock, SendHorizontal, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useRealtimeKitCall } from "@/hooks/useRealtimeKitCall";
+import { useAgoraCall } from "@/hooks/useAgoraCall";
 import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
-import RtkCallScreen from "@/components/RtkCallScreen";
+import AgoraCallScreen from "@/components/AgoraCallScreen";
 
 interface Profile {
   id: string;
@@ -44,8 +44,8 @@ const Profile = () => {
     isInCall,
     callState,
     callConfig,
-    currentUserId: rtkUserId,
-  } = useRealtimeKitCall(currentUserId);
+    currentUserId: agoraUserId,
+  } = useAgoraCall(currentUserId);
 
   useEffect(() => {
     fetchProfile();
@@ -321,10 +321,10 @@ const Profile = () => {
         onDecline={declineCall}
       />
 
-      {/* RTK Call Screen */}
+      {/* Agora Call Screen */}
       <AnimatePresence>
         {isInCall && (
-          <RtkCallScreen
+          <AgoraCallScreen
             callConfig={callConfig}
             callState={callState}
             isVideoCall={isVideoCall}
