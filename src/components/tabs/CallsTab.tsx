@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { useRealtimeKitCall } from "@/hooks/useRealtimeKitCall";
+import { useAgoraCall } from "@/hooks/useAgoraCall";
 import { useAppStore } from "@/stores/appStore";
 import { useScrollPosition } from "@/hooks/useScrollPosition";
 
@@ -19,7 +19,7 @@ const CallsTab = memo(() => {
   // Preserve scroll position across tab switches
   useScrollPosition('calls-tab', scrollRef);
 
-  const { startCall, startAudioCall } = useRealtimeKitCall(currentUserId);
+  const { startCall, startAudioCall } = useAgoraCall(currentUserId);
 
   // Fetch data on mount (cache-first)
   useEffect(() => {
