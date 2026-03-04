@@ -9,7 +9,7 @@ interface IncomingCallData {
   callerId: string;
   callerName: string;
   callerAvatar: string | null;
-  roomName: string;
+  channelName: string;
   isVideo: boolean;
   conversationId: string;
 }
