@@ -154,6 +154,11 @@ const AgoraCallScreen = memo(({
       localAudioTrackRef.current = null;
       localVideoTrackRef.current = null;
 
+      // Stop pre-acquired stream tracks
+      if (callConfig?.preAcquiredStream) {
+        callConfig.preAcquiredStream.getTracks().forEach(t => t.stop());
+      }
+
       // Leave channel
       clientRef.current?.leave().catch(() => {});
       clientRef.current = null;
