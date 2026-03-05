@@ -399,6 +399,19 @@ export const useAgoraCall = (currentUserId: string) => {
 
     stopAllRingtones();
 
+    // Pre-acquire media stream from user gesture context
+    let preAcquiredStream: MediaStream | undefined;
+    try {
+      preAcquiredStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: incomingCall.isVideo,
+      });
+    } catch (mediaErr) {
+      console.error('Media access denied:', mediaErr);
+      toast({ variant: 'destructive', title: 'Permission denied', description: 'Camera/microphone access is required for calls' });
+      return;
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name, avatar_url')
@@ -419,6 +432,7 @@ export const useAgoraCall = (currentUserId: string) => {
       conversationId: incomingCall.conversationId,
       isGroup: false,
       callId: incomingCall.callId,
+      preAcquiredStream,
     });
 
     await supabase
