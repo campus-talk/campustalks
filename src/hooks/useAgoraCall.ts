@@ -26,6 +26,7 @@ export interface CallConfig {
   callId?: string;
   token?: string;
   uid?: number;
+  preAcquiredStream?: MediaStream;
 }
 
 export interface IncomingCallData {
