@@ -26,6 +26,7 @@ export interface CallConfig {
   callId?: string;
   token?: string;
   uid?: number;
+  preAcquiredStream?: MediaStream;
 }
 
 export interface IncomingCallData {
@@ -263,6 +264,19 @@ export const useAgoraCall = (currentUserId: string) => {
 
     const channelName = generateChannelName(conversationId);
 
+    // Pre-acquire media stream from user gesture context
+    let preAcquiredStream: MediaStream | undefined;
+    try {
+      preAcquiredStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo,
+      });
+    } catch (mediaErr) {
+      console.error('Media access denied:', mediaErr);
+      toast({ variant: 'destructive', title: 'Permission denied', description: 'Camera/microphone access is required for calls' });
+      return;
+    }
+
     setCallState('calling');
     setIsVideoCall(isVideo);
     setIsInCall(true);
@@ -287,6 +301,7 @@ export const useAgoraCall = (currentUserId: string) => {
       isVideoCall: isVideo,
       conversationId,
       isGroup,
+      preAcquiredStream,
     });
 
     playOutgoingRingtone();
@@ -384,6 +399,19 @@ export const useAgoraCall = (currentUserId: string) => {
 
     stopAllRingtones();
 
+    // Pre-acquire media stream from user gesture context
+    let preAcquiredStream: MediaStream | undefined;
+    try {
+      preAcquiredStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: incomingCall.isVideo,
+      });
+    } catch (mediaErr) {
+      console.error('Media access denied:', mediaErr);
+      toast({ variant: 'destructive', title: 'Permission denied', description: 'Camera/microphone access is required for calls' });
+      return;
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name, avatar_url')
@@ -404,6 +432,7 @@ export const useAgoraCall = (currentUserId: string) => {
       conversationId: incomingCall.conversationId,
       isGroup: false,
       callId: incomingCall.callId,
+      preAcquiredStream,
     });
 
     await supabase

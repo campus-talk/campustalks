@@ -60,20 +60,42 @@ const AgoraCallScreen = memo(({
         await client.join(AGORA_APP_ID, callConfig.channelName, token, uid);
         if (cancelled) return;
 
-        // Create local tracks
-        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        localAudioTrackRef.current = audioTrack;
+        // Create local tracks from pre-acquired stream if available
+        if (callConfig.preAcquiredStream) {
+          const stream = callConfig.preAcquiredStream;
+          const audioTracks = stream.getAudioTracks();
+          const videoTracks = stream.getVideoTracks();
 
-        if (isVideoCall) {
-          const videoTrack = await AgoraRTC.createCameraVideoTrack();
-          localVideoTrackRef.current = videoTrack;
-          await client.publish([audioTrack, videoTrack]);
-          // Play local video
-          if (localVideoContainerRef.current) {
-            videoTrack.play(localVideoContainerRef.current);
+          if (audioTracks.length > 0) {
+            const audioTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: audioTracks[0] });
+            localAudioTrackRef.current = audioTrack as any;
+          }
+
+          if (isVideoCall && videoTracks.length > 0) {
+            const videoTrack = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: videoTracks[0] });
+            localVideoTrackRef.current = videoTrack as any;
           }
         } else {
-          await client.publish([audioTrack]);
+          // Fallback: create tracks directly (may fail without user gesture)
+          const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          localAudioTrackRef.current = audioTrack;
+
+          if (isVideoCall) {
+            const videoTrack = await AgoraRTC.createCameraVideoTrack();
+            localVideoTrackRef.current = videoTrack;
+          }
+        }
+
+        const tracksToPublish: any[] = [];
+        if (localAudioTrackRef.current) tracksToPublish.push(localAudioTrackRef.current);
+        if (localVideoTrackRef.current) tracksToPublish.push(localVideoTrackRef.current);
+
+        if (tracksToPublish.length > 0) {
+          await client.publish(tracksToPublish);
+        }
+
+        if (isVideoCall && localVideoTrackRef.current && localVideoContainerRef.current) {
+          localVideoTrackRef.current.play(localVideoContainerRef.current);
         }
 
         // Listen for remote users
@@ -131,6 +153,11 @@ const AgoraCallScreen = memo(({
       localVideoTrackRef.current?.close();
       localAudioTrackRef.current = null;
       localVideoTrackRef.current = null;
+
+      // Stop pre-acquired stream tracks
+      if (callConfig?.preAcquiredStream) {
+        callConfig.preAcquiredStream.getTracks().forEach(t => t.stop());
+      }
 
       // Leave channel
       clientRef.current?.leave().catch(() => {});
