@@ -1,13 +1,14 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Search, Users, Bell, MoreVertical } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import CreateGroupDialog from "@/components/CreateGroupDialog";
 import StatusBar from "@/components/StatusBar";
+import { useAppStore } from "@/stores/appStore";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,236 +16,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface Conversation {
-  id: string;
-  is_group?: boolean;
-  group?: {
-    id: string;
-    name: string;
-    avatar_url: string | null;
-  };
-  otherUser?: {
-    id: string;
-    full_name: string;
-    avatar_url: string | null;
-    status: string;
-  };
-  lastMessage: {
-    content: string;
-    created_at: string;
-    is_read: boolean;
-    sender_id: string;
-    message_type: string;
-  } | null;
-  unreadCount: number;
-}
-
 const Conversations = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { toast } = useToast();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  // Memoize total unread
-  const totalUnread = useMemo(() => 
-    conversations.reduce((sum, c) => sum + c.unreadCount, 0), 
-    [conversations]
-  );
-
-  // Refetch when returning to this page
-  useEffect(() => {
-    fetchConversations();
-    const unsubscribe = subscribeToMessages();
-    loadNotificationCount();
-    return unsubscribe;
-  }, [location.key]);
-
-  const loadNotificationCount = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { count } = await supabase
-      .from("notifications")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false);
-
-    setUnreadNotifications(count || 0);
-  };
-
-  const getCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setCurrentUserId(user.id);
-      
-      // Fetch user profile for StatusBar
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, avatar_url")
-        .eq("id", user.id)
-        .single();
-      
-      if (profile) {
-        setCurrentUserProfile(profile);
-      }
-    }
-    return user?.id || "";
-  };
-
-  const fetchConversations = useCallback(async () => {
-    try {
-      const userId = await getCurrentUser();
-      if (!userId) return;
-
-      // Get all conversations for current user
-      const { data: participations, error: partError } = await supabase
-        .from("conversation_participants")
-        .select("conversation_id")
-        .eq("user_id", userId);
-
-      if (partError) throw partError;
-
-      const conversationIds = participations?.map((p) => p.conversation_id) || [];
-      if (conversationIds.length === 0) {
-        setConversations([]);
-        setLoading(false);
-        return;
-      }
-
-      // Batch fetch conversations, participants, and last messages
-      const [convsResult, allParticipantsResult] = await Promise.all([
-        supabase
-          .from("conversations")
-          .select("id, is_group, group_id")
-          .in("id", conversationIds),
-        supabase
-          .from("conversation_participants")
-          .select("conversation_id, user_id")
-          .in("conversation_id", conversationIds),
-      ]);
-
-      const convs = convsResult.data || [];
-      const allParticipants = allParticipantsResult.data || [];
-
-      // Get other users' profiles
-      const otherUserIds = allParticipants
-        .filter((p) => p.user_id !== userId)
-        .map((p) => p.user_id);
-
-      const uniqueOtherUserIds = [...new Set(otherUserIds)];
-
-      // Get groups
-      const groupIds = convs.filter(c => c.is_group && c.group_id).map(c => c.group_id!) || [];
-
-      const [profilesResult, groupsResult] = await Promise.all([
-        uniqueOtherUserIds.length > 0 
-          ? supabase.from("profiles").select("id, full_name, avatar_url, status").in("id", uniqueOtherUserIds)
-          : { data: [] },
-        groupIds.length > 0 
-          ? supabase.from("groups").select("id, name, avatar_url").in("id", groupIds)
-          : { data: [] },
-      ]);
-
-      const profiles = profilesResult.data || [];
-      const groups = groupsResult.data || [];
-
-      // Fetch last message and unread count for each conversation in parallel
-      const conversationPromises = conversationIds.map(async (convId) => {
-        const conv = convs.find(c => c.id === convId);
-        
-        const [messagesResult, unreadResult] = await Promise.all([
-          supabase
-            .from("messages")
-            .select("content, created_at, is_read, sender_id, message_type")
-            .eq("conversation_id", convId)
-            .order("created_at", { ascending: false })
-            .limit(1),
-          supabase
-            .from("messages")
-            .select("*", { count: "exact", head: true })
-            .eq("conversation_id", convId)
-            .eq("is_read", false)
-            .neq("sender_id", userId),
-        ]);
-
-        const lastMessage = messagesResult.data?.[0] || null;
-        const unreadCount = unreadResult.count || 0;
-
-        if (conv?.is_group) {
-          const group = groups.find(g => g.id === conv.group_id);
-          if (group) {
-            return {
-              id: convId,
-              is_group: true,
-              group,
-              lastMessage,
-              unreadCount,
-            } as Conversation;
-          }
-        } else {
-          const otherUserId = allParticipants.find(
-            (p) => p.conversation_id === convId && p.user_id !== userId
-          )?.user_id;
-          const otherUser = profiles.find((p) => p.id === otherUserId);
-          
-          if (otherUser) {
-            return {
-              id: convId,
-              is_group: false,
-              otherUser,
-              lastMessage,
-              unreadCount,
-            } as Conversation;
-          }
-        }
-        return null;
-      });
-
-      const conversationsData = (await Promise.all(conversationPromises)).filter(Boolean) as Conversation[];
-
-      // Sort by last message time
-      conversationsData.sort((a, b) => {
-        const timeA = a.lastMessage?.created_at || "";
-        const timeB = b.lastMessage?.created_at || "";
-        return timeB.localeCompare(timeA);
-      });
-
-      setConversations(conversationsData);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  const subscribeToMessages = useCallback(() => {
-    const channel = supabase
-      .channel("conversations-updates")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => fetchConversations()
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
-        () => fetchConversations()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchConversations]);
+  const {
+    conversations,
+    conversationsLoading,
+    currentUserId,
+    currentUserProfile,
+    unreadNotifications,
+  } = useAppStore();
 
   // Cleanup expired statuses on load (deferred)
   useEffect(() => {
@@ -278,14 +60,6 @@ const Conversations = () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -349,14 +123,14 @@ const Conversations = () => {
         <div className="border-b border-border/30 bg-card">
           <StatusBar
             currentUserId={currentUserId}
-            currentUserProfile={currentUserProfile}
+            currentUserProfile={{ full_name: currentUserProfile.full_name, avatar_url: currentUserProfile.avatar_url }}
           />
         </div>
       )}
 
       {/* Conversations List */}
       <div className="flex-1 overflow-y-auto pb-safe-nav">
-        {conversations.length === 0 ? (
+        {conversations.length === 0 && !conversationsLoading ? (
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-4">
               <Search className="w-10 h-10 text-muted-foreground" />
