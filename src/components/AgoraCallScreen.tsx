@@ -95,9 +95,7 @@ const AgoraCallScreen = memo(({
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         clientRef.current = client;
 
-        // Enable noise suppression
-        AgoraRTC.setParameter('AUDIO_ENABLE_ANS', true);
-        AgoraRTC.setParameter('AUDIO_ENABLE_AEC', true);
+        // Noise suppression enabled via track config below
 
         const { token, uid } = await getAgoraToken(callConfig.channelName, isVideoCall);
         if (cancelled) return;
