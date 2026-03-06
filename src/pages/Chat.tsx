@@ -26,6 +26,7 @@ import ChatUserProfile from "@/components/ChatUserProfile";
 import ActiveCallBanner from "@/components/ActiveCallBanner";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoiceMessagePlayer from "@/components/VoiceMessagePlayer";
+import ChatImage from "@/components/ChatImage";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
 import { format, isSameDay } from "date-fns";
