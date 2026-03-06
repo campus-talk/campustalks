@@ -1031,29 +1031,62 @@ const Chat = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reset input so same file can be selected again
+    e.target.value = "";
+
+    const tempId = generateTempId();
+    const localUrl = URL.createObjectURL(file);
+
+    // ⚡ Optimistic: show image preview instantly
+    const optimisticMessage: Message = {
+      id: tempId,
+      content: localUrl,
+      message_type: "image",
+      sender_id: currentUserId,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      reactions: [],
+      _isOptimistic: true,
+      _tempId: tempId,
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToBottom("smooth")));
+
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${conversationId}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("chat-attachments")
-        .upload(fileName, file);
+        .upload(fileName, file, { contentType: file.type });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("chat-attachments")
-        .getPublicUrl(fileName);
+      // Use storage:// prefix for private bucket (like voice messages)
+      const storagePath = `storage://chat-attachments/${fileName}`;
 
-      const { error: messageError } = await supabase.from("messages").insert({
+      const { data: messageData, error: messageError } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
-        content: publicUrl,
+        content: storagePath,
         message_type: "image",
-      });
+      }).select().single();
 
       if (messageError) throw messageError;
+
+      // Reconcile optimistic with real
+      setMessages(prev => prev.map(m =>
+        m._tempId === tempId
+          ? { ...messageData, reactions: [], _isOptimistic: false, _tempId: undefined, _isFailed: undefined }
+          : m
+      ));
+
+      URL.revokeObjectURL(localUrl);
     } catch (error: any) {
+      setMessages(prev => prev.map(m =>
+        m._tempId === tempId ? { ...m, _isFailed: true } : m
+      ));
       toast({
         variant: "destructive",
         title: "Error uploading image",
@@ -1424,10 +1457,12 @@ const Chat = () => {
                               );
                             })()
                           ) : isImage ? (
-                            <img
-                              src={message.content}
-                              alt="Shared image"
-                              className="rounded-lg max-w-full"
+                            <ChatImage
+                              content={message.content}
+                              messageId={message.id}
+                              isSent={isSent}
+                              currentUserId={currentUserId}
+                              senderId={message.sender_id}
                             />
                           ) : (
                             <p className="break-words">{message.content}</p>
