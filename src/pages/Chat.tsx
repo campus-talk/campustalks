@@ -1432,7 +1432,7 @@ const Chat = () => {
 
                       <div className="relative">
                         <div
-                          className={`rounded-2xl px-4 py-3 ${
+                          className={`rounded-2xl ${isImage ? 'p-1 overflow-hidden' : 'px-4 py-3'} ${
                             isSent
                               ? message._isFailed 
                                 ? "bg-destructive/80 text-white rounded-br-sm"
