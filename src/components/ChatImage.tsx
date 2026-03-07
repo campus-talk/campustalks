@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Eye } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Download, Eye, ImageOff, RefreshCw } from "lucide-react";
 
 interface ChatImageProps {
-  content: string; // storage://chat-attachments/path OR local blob URL
+  content: string; // storage://chat-attachments/path OR local blob URL OR public URL
   messageId: string;
   isSent: boolean;
   currentUserId: string;
@@ -14,69 +13,90 @@ interface ChatImageProps {
 const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: ChatImageProps) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-
-  const isLocalBlob = content.startsWith("blob:");
-  const isStoragePath = content.startsWith("storage://");
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const resolveUrl = useCallback(async () => {
-    if (isLocalBlob) {
-      setImageUrl(content);
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
+    setError(null);
+    setImgLoaded(false);
 
-    if (isStoragePath) {
-      const parts = content.replace("storage://", "").split("/");
-      const bucket = parts[0];
-      const path = parts.slice(1).join("/");
+    try {
+      // Local blob URL (optimistic preview)
+      if (content.startsWith("blob:")) {
+        setImageUrl(content);
+        setLoading(false);
+        return;
+      }
 
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(path, 3600);
+      // storage:// protocol -> generate signed URL
+      if (content.startsWith("storage://")) {
+        const parts = content.replace("storage://", "").split("/");
+        const bucket = parts[0];
+        const path = parts.slice(1).join("/");
 
-      if (!error && data) {
+        const { data, error: signError } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 3600);
+
+        if (signError || !data?.signedUrl) {
+          console.error("ChatImage signed URL error:", signError);
+          // Fallback: try public URL
+          const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path);
+          if (publicData?.publicUrl) {
+            setImageUrl(publicData.publicUrl);
+          } else {
+            setError("Image not available");
+          }
+          setLoading(false);
+          return;
+        }
+
         setImageUrl(data.signedUrl);
 
-        // If I'm the recipient viewing this image, mark for ephemeral cleanup
+        // Ephemeral cleanup: if recipient views, delete from server after caching
         if (senderId !== currentUserId) {
-          cleanupFromServer(bucket, path, messageId);
+          scheduleCleanup(bucket, path, messageId);
         }
-      }
-      setLoading(false);
-      return;
-    }
 
-    // Legacy: direct URL
-    setImageUrl(content);
-    setLoading(false);
+        setLoading(false);
+        return;
+      }
+
+      // Direct URL (legacy or external)
+      if (content.startsWith("http")) {
+        setImageUrl(content);
+        setLoading(false);
+        return;
+      }
+
+      // Unknown format
+      setError("Unsupported image format");
+      setLoading(false);
+    } catch (e: any) {
+      console.error("ChatImage resolve error:", e);
+      setError(e.message || "Failed to load image");
+      setLoading(false);
+    }
   }, [content, currentUserId, senderId, messageId]);
 
   useEffect(() => {
     resolveUrl();
   }, [resolveUrl]);
 
-  // Cache image to IndexedDB then delete from server
-  const cleanupFromServer = async (bucket: string, path: string, msgId: string) => {
-    try {
-      // Check if already cached locally
-      const cacheKey = `img_${msgId}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached === "cleaned") return;
+  const scheduleCleanup = (bucket: string, path: string, msgId: string) => {
+    const cacheKey = `img_${msgId}`;
+    if (localStorage.getItem(cacheKey) === "cleaned") return;
 
-      // Small delay to ensure image is fully loaded by recipient
-      setTimeout(async () => {
-        try {
-          // Delete from storage server to reduce server load
-          await supabase.storage.from(bucket).remove([path]);
-          localStorage.setItem(cacheKey, "cleaned");
-        } catch (e) {
-          // Non-critical, will retry next time
-        }
-      }, 5000);
-    } catch (e) {
-      // Ignore
-    }
+    setTimeout(async () => {
+      try {
+        await supabase.storage.from(bucket).remove([path]);
+        localStorage.setItem(cacheKey, "cleaned");
+      } catch {
+        // Non-critical
+      }
+    }, 8000);
   };
 
   const handleDownload = async () => {
@@ -95,34 +115,64 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
     }
   };
 
+  // Loading state
   if (loading) {
     return (
-      <div className="w-48 h-48 rounded-lg bg-muted/50 animate-pulse flex items-center justify-center">
-        <Eye className="w-6 h-6 text-muted-foreground animate-pulse" />
+      <div className="w-48 h-48 rounded-lg bg-black/20 animate-pulse flex items-center justify-center">
+        <Eye className="w-6 h-6 text-white/50 animate-pulse" />
+      </div>
+    );
+  }
+
+  // Error state with retry
+  if (error || !imageUrl) {
+    return (
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          resolveUrl();
+        }}
+        className="w-48 h-32 rounded-lg bg-black/20 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-black/30 transition-colors"
+      >
+        <ImageOff className="w-8 h-8 text-white/50" />
+        <span className="text-xs text-white/60">Tap to retry</span>
+        <RefreshCw className="w-4 h-4 text-white/40" />
       </div>
     );
   }
 
   return (
     <>
-      <div className="relative group cursor-pointer" onClick={() => setFullscreen(true)}>
+      <div className="relative group cursor-pointer -mx-2 -my-1" onClick={() => setFullscreen(true)}>
+        {!imgLoaded && (
+          <div className="w-48 h-48 rounded-lg bg-black/20 animate-pulse flex items-center justify-center absolute inset-0">
+            <Eye className="w-6 h-6 text-white/50" />
+          </div>
+        )}
         <img
-          src={imageUrl || ""}
-          alt="Shared image"
-          className="rounded-lg max-w-full max-h-64 object-cover"
+          src={imageUrl}
+          alt=""
+          className={`rounded-lg max-w-[260px] max-h-64 object-cover transition-opacity ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
           loading="lazy"
+          onLoad={() => setImgLoaded(true)}
+          onError={() => {
+            setImgLoaded(false);
+            setError("Failed to load");
+          }}
         />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDownload();
-            }}
-            className="p-2 bg-white/90 rounded-full"
-          >
-            <Download className="w-5 h-5 text-gray-800" />
-          </button>
-        </div>
+        {imgLoaded && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload();
+              }}
+              className="p-2 bg-white/90 rounded-full"
+            >
+              <Download className="w-5 h-5 text-gray-800" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Fullscreen viewer */}
@@ -132,8 +182,8 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
           onClick={() => setFullscreen(false)}
         >
           <img
-            src={imageUrl || ""}
-            alt="Full image"
+            src={imageUrl}
+            alt=""
             className="max-w-[95vw] max-h-[90vh] object-contain"
           />
           <button
