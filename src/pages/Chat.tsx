@@ -1432,7 +1432,7 @@ const Chat = () => {
 
                       <div className="relative">
                         <div
-                          className={`rounded-2xl px-4 py-3 ${
+                          className={`rounded-2xl ${isImage ? 'p-1 overflow-hidden' : 'px-4 py-3'} ${
                             isSent
                               ? message._isFailed 
                                 ? "bg-destructive/80 text-white rounded-br-sm"
@@ -1468,7 +1468,7 @@ const Chat = () => {
                           ) : (
                             <p className="break-words">{message.content}</p>
                           )}
-                          <div className={`flex items-center gap-1 mt-1 text-xs ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
+                          <div className={`flex items-center gap-1 mt-1 text-xs ${isImage ? 'px-3 pb-2' : ''} ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
                             {starredMessages.includes(message.id) && (
                               <Star className="w-3 h-3 fill-current text-yellow-400" />
                             )}
