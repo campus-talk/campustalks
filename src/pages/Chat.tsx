@@ -128,6 +128,8 @@ const Chat = () => {
     currentUserId: agoraUserId,
   } = useAgoraCall(currentUserId);
 
+  // E2E Encryption
+  const { ready: e2eReady, encrypt, decrypt } = useE2E(currentUserId);
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
     initializeChat();
