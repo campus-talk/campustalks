@@ -1175,9 +1175,21 @@ const Chat = () => {
         onDecline={declineCall}
       />
 
-      {/* Agora Call Screen */}
+      {/* Call Screen - Group or 1-on-1 */}
       <AnimatePresence>
-        {isInCall && (
+        {isInCall && isGroupChat && (
+          <GroupCallScreen
+            callConfig={callConfig}
+            callState={callState}
+            isVideoCall={isVideoCall}
+            currentUserId={currentUserId}
+            onEndCall={endCall}
+            onInviteUsers={inviteToCall}
+            groupId={groupId}
+            conversationId={conversationId}
+          />
+        )}
+        {isInCall && !isGroupChat && (
           <AgoraCallScreen
             callConfig={callConfig}
             callState={callState}
