@@ -76,7 +76,7 @@ const App = () => {
             {/* Main app shell with persistent tabs - NO lazy loading, NO Suspense */}
             <Route element={<AppShell />}>
               <Route path="/conversations" element={<ConversationsTab />} />
-              <Route path="/groups" element={<GroupsTab />} />
+              {/* Groups tab removed */}
               <Route path="/calls" element={<CallsTab />} />
               <Route path="/settings" element={<SettingsTab />} />
             </Route>
