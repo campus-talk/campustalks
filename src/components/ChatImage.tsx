@@ -118,7 +118,7 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
   // Loading state
   if (loading) {
     return (
-      <div className="w-48 h-48 rounded-lg bg-black/20 animate-pulse flex items-center justify-center">
+      <div className="w-64 h-48 rounded-lg bg-black/20 animate-pulse flex items-center justify-center">
         <Eye className="w-6 h-6 text-white/50 animate-pulse" />
       </div>
     );
@@ -132,7 +132,7 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
           e.stopPropagation();
           resolveUrl();
         }}
-        className="w-48 h-32 rounded-lg bg-black/20 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-black/30 transition-colors"
+        className="w-64 h-48 rounded-lg bg-black/20 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-black/30 transition-colors"
       >
         <ImageOff className="w-8 h-8 text-white/50" />
         <span className="text-xs text-white/60">Tap to retry</span>
@@ -143,16 +143,19 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
 
   return (
     <>
-      <div className="relative group cursor-pointer -mx-2 -my-1" onClick={() => setFullscreen(true)}>
+      <div
+        className="relative group cursor-pointer w-64 h-48 flex justify-center items-center rounded-lg overflow-hidden bg-muted/50"
+        onClick={() => setFullscreen(true)}
+      >
         {!imgLoaded && (
-          <div className="w-48 h-48 rounded-lg bg-black/20 animate-pulse flex items-center justify-center absolute inset-0">
-            <Eye className="w-6 h-6 text-white/50" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Eye className="w-10 h-10 text-white/50 animate-pulse" />
           </div>
         )}
         <img
           src={imageUrl}
-          alt=""
-          className={`rounded-lg max-w-[260px] max-h-64 object-cover transition-opacity ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+          alt="Chat attachment"
+          className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
           loading="lazy"
           onLoad={() => setImgLoaded(true)}
           onError={() => {
@@ -161,16 +164,8 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
           }}
         />
         {imgLoaded && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDownload();
-              }}
-              className="p-2 bg-white/90 rounded-full"
-            >
-              <Download className="w-5 h-5 text-gray-800" />
-            </button>
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <Eye className="w-8 h-8 text-white" />
           </div>
         )}
       </div>
@@ -178,13 +173,13 @@ const ChatImage = ({ content, messageId, isSent, currentUserId, senderId }: Chat
       {/* Fullscreen viewer */}
       {fullscreen && (
         <div
-          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center"
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center"
           onClick={() => setFullscreen(false)}
         >
           <img
             src={imageUrl}
-            alt=""
-            className="max-w-[95vw] max-h-[90vh] object-contain"
+            alt="Chat attachment"
+            className="max-w-[95vw] max-h-[90vh] object-contain shadow-2xl"
           />
           <button
             onClick={(e) => {

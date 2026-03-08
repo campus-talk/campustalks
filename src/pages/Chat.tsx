@@ -1091,7 +1091,7 @@ const Chat = () => {
       toast({
         variant: "destructive",
         title: "Error uploading image",
-        description: error.message,
+        description: `The Supabase server responded with an error: ${error.message}`,
       });
     }
   };
@@ -1409,9 +1409,21 @@ const Chat = () => {
                     onContextMenu={(e) => !message._isFailed && handleLongPress(e, message)}
                     onTouchStart={(e) => {
                       if (message._isFailed) return;
-                      const timer = setTimeout(() => handleLongPress(e, message), 500);
-                      const handler = () => clearTimeout(timer);
-                      e.currentTarget.addEventListener('touchend', handler, { once: true });
+                      const target = e.currentTarget;
+                      const timer = setTimeout(() => {
+                        target.removeEventListener('touchmove', cancel);
+                        target.removeEventListener('touchend', cancel);
+                        handleLongPress(e, message);
+                      }, 500);
+
+                      const cancel = () => {
+                        clearTimeout(timer);
+                        target.removeEventListener('touchmove', cancel);
+                        target.removeEventListener('touchend', cancel);
+                      };
+
+                      target.addEventListener('touchmove', cancel, { once: true });
+                      target.addEventListener('touchend', cancel, { once: true });
                     }}
                     onClick={() => {
                       // Allow retry on failed messages

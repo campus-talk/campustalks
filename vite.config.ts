@@ -3,16 +3,25 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  css: {
+    postcss: {
+      plugins: [tailwindcss(), autoprefixer()],
+    },
+  },
   server: {
     host: "::",
     port: 8080,
   },
   define: {
     // Route all Supabase calls through Cloudflare proxy to bypass ISP blocks in India
-    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://ancient-cherry-6faa.ajitpcmandal.workers.dev'),
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(
+      "https://ancient-cherry-6faa.ajitpcmandal.workers.dev"
+    ),
   },
   plugins: [
     react(),
@@ -92,7 +101,11 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: {
           vendor: ["react", "react-dom", "react-router-dom"],
-          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-popover"],
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-popover",
+          ],
         },
       },
     },
