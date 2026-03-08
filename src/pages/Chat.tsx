@@ -345,7 +345,7 @@ const Chat = () => {
       return;
     }
 
-    // Load reactions for each message
+    // Load reactions and decrypt messages
     if (data) {
       const messagesWithReactions = await Promise.all(
         data.map(async (msg) => {
@@ -354,7 +354,21 @@ const Chat = () => {
             .select("id, emoji, user_id")
             .eq("message_id", msg.id);
           
-          return { ...msg, reactions: reactions || [] };
+          // Decrypt E2E encrypted messages
+          let content = msg.content;
+          if (msg.message_type === "e2e_text" && !isGroupChat) {
+            try {
+              const senderId = msg.sender_id === currentUserId
+                ? (otherUser?.id || msg.sender_id)
+                : msg.sender_id;
+              const decrypted = await decrypt(msg.content, senderId);
+              if (decrypted) content = decrypted;
+            } catch {
+              content = "🔒 Unable to decrypt message";
+            }
+          }
+          
+          return { ...msg, content, reactions: reactions || [] };
         })
       );
       setMessages(messagesWithReactions);
