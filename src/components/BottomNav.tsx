@@ -55,7 +55,6 @@ const BottomNav = () => {
 
   const navItems = [
     { icon: MessageSquare, label: "Chats", path: "/conversations", badge: unreadMessages },
-    { icon: Users, label: "Groups", path: "/groups", badge: 0 },
     { icon: Phone, label: "Calls", path: "/calls", badge: 0 },
     { icon: User, label: "Account", path: "/settings", badge: 0 },
   ];
