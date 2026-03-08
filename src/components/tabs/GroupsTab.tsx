@@ -12,10 +12,8 @@ import { useScrollPosition } from "@/hooks/useScrollPosition";
 const GroupsTab = memo(() => {
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
-
-
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   
-  // Preserve scroll position across tab switches
   useScrollPosition('groups-tab', scrollRef);
 
   const {
@@ -25,13 +23,11 @@ const GroupsTab = memo(() => {
     fetchGroups,
   } = useAppStore();
 
-  // Fetch data on mount (cache-first)
   useEffect(() => {
     fetchGroups();
   }, [fetchGroups]);
 
   const handleGroupClick = async (groupId: string) => {
-    // Find the conversation for this group
     const { data: conversation } = await supabase
       .from("conversations")
       .select("id")
@@ -59,17 +55,13 @@ const GroupsTab = memo(() => {
     );
   }
 
-  // Show skeleton while loading first time
   if (groupsLoading && groups.length === 0) {
     return (
       <div className="min-h-screen geometric-pattern pb-24">
         <header className="gradient-primary text-white p-6 shadow-lg sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div>
-              <div className="h-7 w-24 bg-white/20 rounded animate-pulse" />
-              <div className="h-4 w-16 bg-white/20 rounded animate-pulse mt-2" />
-            </div>
-            <div className="h-10 w-10 bg-white/20 rounded-full animate-pulse" />
+          <div className="max-w-7xl mx-auto">
+            <div className="h-7 w-24 bg-white/20 rounded animate-pulse" />
+            <div className="h-4 w-16 bg-white/20 rounded animate-pulse mt-2" />
           </div>
         </header>
         <div className="max-w-7xl mx-auto p-4 space-y-4">
@@ -91,30 +83,13 @@ const GroupsTab = memo(() => {
 
   return (
     <div className="min-h-screen geometric-pattern pb-24">
-      {/* Header */}
       <header className="gradient-primary text-white p-6 shadow-lg sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Groups</h1>
-            <p className="text-sm text-white/80 mt-1">{groups.length} groups</p>
-          </div>
-          <Button
-            onClick={() => setCreateGroupOpen(true)}
-            size="icon"
-            className="rounded-full bg-white/20 hover:bg-white/30 text-white border-none"
-          >
-            <Plus className="w-6 h-6" />
-          </Button>
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-2xl font-bold">Groups</h1>
+          <p className="text-sm text-white/80 mt-1">{groups.length} groups</p>
         </div>
       </header>
 
-      <CreateGroupDialog
-        open={createGroupOpen}
-        onOpenChange={setCreateGroupOpen}
-        currentUserId={currentUserId}
-      />
-
-      {/* Groups List */}
       <div ref={scrollRef} className="max-w-7xl mx-auto p-4">
         {groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6">
@@ -122,16 +97,9 @@ const GroupsTab = memo(() => {
               <UsersIcon className="w-16 h-16 text-primary" />
             </div>
             <h3 className="text-xl font-semibold mb-2">No Groups Yet</h3>
-            <p className="text-muted-foreground text-center mb-6">
-              Create a group to start chatting with multiple people at once
+            <p className="text-muted-foreground text-center">
+              You're not part of any groups yet
             </p>
-            <Button
-              onClick={() => setCreateGroupOpen(true)}
-              className="gradient-primary hover:gradient-primary-hover"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Create Group
-            </Button>
           </div>
         ) : (
           <div className="grid gap-4">
