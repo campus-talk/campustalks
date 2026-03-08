@@ -38,6 +38,26 @@ export function useE2E(currentUserId: string) {
             public_key: serializePublicKey(publicKeyJwk),
             updated_at: new Date().toISOString(),
           }, { onConflict: "user_id" });
+        } else {
+          // Private key exists - ensure public key is also in DB
+          // (handles case where IndexedDB has key but DB was cleared)
+          const { data: existing } = await (supabase as any)
+            .from("user_public_keys")
+            .select("id")
+            .eq("user_id", currentUserId)
+            .maybeSingle();
+
+          if (!existing) {
+            // Re-generate since we can't extract public from non-extractable private
+            const { publicKeyJwk, privateKey: newPrivateKey } = await generateKeyPair();
+            privateKey = newPrivateKey;
+
+            await (supabase as any).from("user_public_keys").upsert({
+              user_id: currentUserId,
+              public_key: serializePublicKey(publicKeyJwk),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "user_id" });
+          }
         }
 
         privateKeyRef.current = privateKey;

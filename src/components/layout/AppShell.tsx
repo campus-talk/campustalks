@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
-import { MessageSquare, Users, Phone, User } from "lucide-react";
+import { MessageSquare, Phone, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/stores/appStore";
@@ -10,7 +10,7 @@ import SyncIndicator from "@/components/SyncIndicator";
 // ZegoCloud SDK is lazy-loaded when a call is initiated
 
 // Tab routes that use the persistent shell
-const TAB_ROUTES = ["/conversations", "/groups", "/calls", "/settings"];
+const TAB_ROUTES = ["/conversations", "/calls", "/settings"];
 
 const AppShell = () => {
   const navigate = useNavigate();
@@ -118,7 +118,6 @@ const AppShell = () => {
 
   const navItems = useMemo(() => [
     { icon: MessageSquare, label: "Chats", path: "/conversations", badge: totalUnreadMessages },
-    { icon: Users, label: "Groups", path: "/groups", badge: 0 },
     { icon: Phone, label: "Calls", path: "/calls", badge: 0 },
     { icon: User, label: "Account", path: "/settings", badge: 0 },
   ], [totalUnreadMessages]);

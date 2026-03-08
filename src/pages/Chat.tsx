@@ -259,6 +259,8 @@ const Chat = () => {
       .eq("id", conversationId)
       .single();
 
+    let resolvedOtherUser: Profile | null = null;
+
     if (conversationData?.is_group && conversationData.group_id) {
       setIsGroupChat(true);
       setGroupId(conversationData.group_id);
@@ -271,11 +273,12 @@ const Chat = () => {
         .single();
 
       if (groupData) {
-        setOtherUser({
+        resolvedOtherUser = {
           id: conversationData.group_id,
           full_name: groupData.name,
           avatar_url: groupData.avatar_url,
-        });
+        };
+        setOtherUser(resolvedOtherUser);
       }
     } else {
       // Get conversation participants for 1-on-1 chat
@@ -293,12 +296,13 @@ const Chat = () => {
           .eq("id", otherUserId)
           .single();
 
+        resolvedOtherUser = profile;
         setOtherUser(profile);
       }
     }
 
-    // Load messages, call logs, and starred messages
-    loadMessages();
+    // Load messages with resolved IDs (not stale state)
+    loadMessages(user.id, resolvedOtherUser);
     loadCallLogs();
     loadStarredMessages();
   };
@@ -329,7 +333,10 @@ const Chat = () => {
     }
   };
 
-  const loadMessages = async () => {
+  const loadMessages = async (myId?: string, otherProfile?: Profile | null) => {
+    const userId = myId || currentUserId;
+    const partner = otherProfile || otherUser;
+    
     const { data, error } = await supabase
       .from("messages")
       .select("*")
@@ -358,11 +365,14 @@ const Chat = () => {
           let content = msg.content;
           if (msg.message_type === "e2e_text" && !isGroupChat) {
             try {
-              const senderId = msg.sender_id === currentUserId
-                ? (otherUser?.id || msg.sender_id)
+              // For ECDH: both sides need the OTHER user's public key
+              // If I sent it → use partner's key; if they sent it → use sender's key (which IS partner)
+              const keyUserId = msg.sender_id === userId
+                ? (partner?.id || msg.sender_id)
                 : msg.sender_id;
-              const decrypted = await decrypt(msg.content, senderId);
+              const decrypted = await decrypt(msg.content, keyUserId);
               if (decrypted) content = decrypted;
+              else content = "🔒 Unable to decrypt";
             } catch {
               content = "🔒 Unable to decrypt message";
             }
