@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Persistent shell for main tabs - NOT lazy loaded
 import AppShell from "@/components/layout/AppShell";
 import ConversationsTab from "@/components/tabs/ConversationsTab";
-import GroupsTab from "@/components/tabs/GroupsTab";
+// GroupsTab removed - feature disabled
 import CallsTab from "@/components/tabs/CallsTab";
 import SettingsTab from "@/components/tabs/SettingsTab";
 
