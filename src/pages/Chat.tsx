@@ -118,6 +118,7 @@ const Chat = () => {
     acceptCall,
     declineCall,
     endCall,
+    inviteToCall,
     isVideoCall,
     incomingCall,
     isInCall,
