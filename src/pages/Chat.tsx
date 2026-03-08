@@ -585,11 +585,23 @@ const Chat = () => {
     
     // 🔄 ASYNC: Database insert happens in background
     try {
+      // 🔐 E2E: Encrypt message for 1-on-1 chats
+      let contentToSend = savedMessage;
+      let messageType = "text";
+      
+      if (!isGroupChat && otherUser && e2eReady) {
+        const encrypted = await encrypt(savedMessage, otherUser.id);
+        if (encrypted) {
+          contentToSend = encrypted;
+          messageType = "e2e_text";
+        }
+      }
+
       const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
-        content: savedMessage,
-        message_type: "text",
+        content: contentToSend,
+        message_type: messageType,
         reply_to: savedReplyTo?.id || null,
       }).select().single();
 
