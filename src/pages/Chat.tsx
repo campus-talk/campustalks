@@ -439,15 +439,24 @@ const Chat = () => {
           const incoming = { ...(payload.new as Message), reactions: [] };
 
           // SKIP messages from current user - we handle them optimistically
-          // This prevents duplicate messages in the UI
           if (incoming.sender_id === currentUserId) {
             return;
+          }
+
+          // Decrypt E2E encrypted messages
+          if (incoming.message_type === "e2e_text" && !isGroupChat) {
+            try {
+              const decrypted = await decrypt(incoming.content, incoming.sender_id);
+              if (decrypted) incoming.content = decrypted;
+              else incoming.content = "🔒 Unable to decrypt message";
+            } catch {
+              incoming.content = "🔒 Unable to decrypt message";
+            }
           }
 
           const shouldAutoScroll = isAtBottomRef.current;
 
           setMessages((prev) => {
-            // Double-check to prevent duplicates
             if (prev.some(m => m.id === incoming.id)) {
               return prev;
             }
