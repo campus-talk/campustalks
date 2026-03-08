@@ -30,6 +30,7 @@ import VoiceMessagePlayer from "@/components/VoiceMessagePlayer";
 import ChatImage from "@/components/ChatImage";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
+import { useE2E } from "@/hooks/useE2E";
 import { format, isSameDay } from "date-fns";
 
 interface Reaction {
@@ -127,6 +128,8 @@ const Chat = () => {
     currentUserId: agoraUserId,
   } = useAgoraCall(currentUserId);
 
+  // E2E Encryption
+  const { ready: e2eReady, encrypt, decrypt } = useE2E(currentUserId);
   useEffect(() => {
     initialAutoScrollDoneRef.current = false;
     initializeChat();
@@ -342,7 +345,7 @@ const Chat = () => {
       return;
     }
 
-    // Load reactions for each message
+    // Load reactions and decrypt messages
     if (data) {
       const messagesWithReactions = await Promise.all(
         data.map(async (msg) => {
@@ -351,7 +354,21 @@ const Chat = () => {
             .select("id, emoji, user_id")
             .eq("message_id", msg.id);
           
-          return { ...msg, reactions: reactions || [] };
+          // Decrypt E2E encrypted messages
+          let content = msg.content;
+          if (msg.message_type === "e2e_text" && !isGroupChat) {
+            try {
+              const senderId = msg.sender_id === currentUserId
+                ? (otherUser?.id || msg.sender_id)
+                : msg.sender_id;
+              const decrypted = await decrypt(msg.content, senderId);
+              if (decrypted) content = decrypted;
+            } catch {
+              content = "🔒 Unable to decrypt message";
+            }
+          }
+          
+          return { ...msg, content, reactions: reactions || [] };
         })
       );
       setMessages(messagesWithReactions);
@@ -422,15 +439,24 @@ const Chat = () => {
           const incoming = { ...(payload.new as Message), reactions: [] };
 
           // SKIP messages from current user - we handle them optimistically
-          // This prevents duplicate messages in the UI
           if (incoming.sender_id === currentUserId) {
             return;
+          }
+
+          // Decrypt E2E encrypted messages
+          if (incoming.message_type === "e2e_text" && !isGroupChat) {
+            try {
+              const decrypted = await decrypt(incoming.content, incoming.sender_id);
+              if (decrypted) incoming.content = decrypted;
+              else incoming.content = "🔒 Unable to decrypt message";
+            } catch {
+              incoming.content = "🔒 Unable to decrypt message";
+            }
           }
 
           const shouldAutoScroll = isAtBottomRef.current;
 
           setMessages((prev) => {
-            // Double-check to prevent duplicates
             if (prev.some(m => m.id === incoming.id)) {
               return prev;
             }
@@ -559,11 +585,23 @@ const Chat = () => {
     
     // 🔄 ASYNC: Database insert happens in background
     try {
+      // 🔐 E2E: Encrypt message for 1-on-1 chats
+      let contentToSend = savedMessage;
+      let messageType = "text";
+      
+      if (!isGroupChat && otherUser && e2eReady) {
+        const encrypted = await encrypt(savedMessage, otherUser.id);
+        if (encrypted) {
+          contentToSend = encrypted;
+          messageType = "e2e_text";
+        }
+      }
+
       const { data: messageData, error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
-        content: savedMessage,
-        message_type: "text",
+        content: contentToSend,
+        message_type: messageType,
         reply_to: savedReplyTo?.id || null,
       }).select().single();
 
