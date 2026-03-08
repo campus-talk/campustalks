@@ -10,7 +10,7 @@ import SyncIndicator from "@/components/SyncIndicator";
 // ZegoCloud SDK is lazy-loaded when a call is initiated
 
 // Tab routes that use the persistent shell
-const TAB_ROUTES = ["/conversations", "/groups", "/calls", "/settings"];
+const TAB_ROUTES = ["/conversations", "/calls", "/settings"];
 
 const AppShell = () => {
   const navigate = useNavigate();
