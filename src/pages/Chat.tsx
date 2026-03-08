@@ -259,6 +259,8 @@ const Chat = () => {
       .eq("id", conversationId)
       .single();
 
+    let resolvedOtherUser: Profile | null = null;
+
     if (conversationData?.is_group && conversationData.group_id) {
       setIsGroupChat(true);
       setGroupId(conversationData.group_id);
@@ -271,11 +273,12 @@ const Chat = () => {
         .single();
 
       if (groupData) {
-        setOtherUser({
+        resolvedOtherUser = {
           id: conversationData.group_id,
           full_name: groupData.name,
           avatar_url: groupData.avatar_url,
-        });
+        };
+        setOtherUser(resolvedOtherUser);
       }
     } else {
       // Get conversation participants for 1-on-1 chat
@@ -293,12 +296,13 @@ const Chat = () => {
           .eq("id", otherUserId)
           .single();
 
+        resolvedOtherUser = profile;
         setOtherUser(profile);
       }
     }
 
-    // Load messages, call logs, and starred messages
-    loadMessages();
+    // Load messages with resolved IDs (not stale state)
+    loadMessages(user.id, resolvedOtherUser);
     loadCallLogs();
     loadStarredMessages();
   };
