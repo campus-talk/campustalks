@@ -288,16 +288,42 @@ export const useAgoraCall = (currentUserId: string) => {
       .eq('id', currentUserId)
       .single();
 
-    const { data: otherProfile } = await supabase
-      .from('profiles')
-      .select('full_name, avatar_url')
-      .eq('id', otherUserId)
-      .single();
+    // For group calls, get group name; for 1-on-1, get other user's profile
+    let callDisplayName = myProfile?.full_name || displayName;
+    let callAvatarUrl = myProfile?.avatar_url || undefined;
+
+    if (isGroup) {
+      // Get group info via conversation
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('group_id')
+        .eq('id', conversationId)
+        .single();
+
+      if (conv?.group_id) {
+        const { data: groupData } = await supabase
+          .from('groups')
+          .select('name, avatar_url')
+          .eq('id', conv.group_id)
+          .single();
+        if (groupData) {
+          callDisplayName = groupData.name;
+          callAvatarUrl = groupData.avatar_url || undefined;
+        }
+      }
+    } else {
+      const { data: otherProfile } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url')
+        .eq('id', otherUserId)
+        .single();
+      callAvatarUrl = otherProfile?.avatar_url || undefined;
+    }
 
     setCallConfig({
       channelName,
-      displayName: myProfile?.full_name || displayName,
-      avatarUrl: otherProfile?.avatar_url || undefined,
+      displayName: callDisplayName,
+      avatarUrl: callAvatarUrl,
       isVideoCall: isVideo,
       conversationId,
       isGroup,
@@ -331,45 +357,73 @@ export const useAgoraCall = (currentUserId: string) => {
         user_id: currentUserId,
       });
 
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          type: 'call',
-          recipientIds: [otherUserId],
-          senderId: currentUserId,
-          senderName: myProfile?.full_name || 'Someone',
-          callType: isVideo ? 'video' : 'audio',
-          conversationId,
-        },
-      }).catch(() => {});
+      // For group calls: notify all participants except self
+      let recipientIds: string[] = [];
+      if (isGroup) {
+        const { data: participants } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+          .neq('user_id', currentUserId);
+        recipientIds = (participants || []).map(p => p.user_id);
+      } else {
+        recipientIds = [otherUserId];
+      }
+
+      // Send push notifications
+      if (recipientIds.length > 0) {
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            type: 'call',
+            recipientIds,
+            senderId: currentUserId,
+            senderName: myProfile?.full_name || 'Someone',
+            callType: isVideo ? 'video' : 'audio',
+            conversationId,
+          },
+        }).catch(() => {});
+      }
+
+      // For group calls, auto-accept (no need to wait for single receiver)
+      if (isGroup) {
+        await supabase
+          .from('active_calls')
+          .update({ call_state: 'accepted' })
+          .eq('id', activeCall.id);
+        stopAllRingtones();
+        setCallState('accepted');
+      }
 
       await supabase.from('call_logs').insert({
         caller_id: currentUserId,
-        receiver_id: otherUserId,
+        receiver_id: isGroup ? null : otherUserId,
         conversation_id: conversationId,
         call_type: isVideo ? 'video' : 'audio',
         call_status: 'initiated',
       });
 
-      callTimeoutRef.current = setTimeout(async () => {
-        stopAllRingtones();
-        await supabase
-          .from('active_calls')
-          .update({ call_state: 'missed', is_active: false })
-          .eq('id', activeCall.id);
+      if (!isGroup) {
+        callTimeoutRef.current = setTimeout(async () => {
+          stopAllRingtones();
+          await supabase
+            .from('active_calls')
+            .update({ call_state: 'missed', is_active: false })
+            .eq('id', activeCall.id);
 
-        await supabase
-          .from('call_logs')
-          .update({ call_status: 'missed' })
-          .eq('conversation_id', conversationId)
-          .eq('caller_id', currentUserId)
-          .order('created_at', { ascending: false })
-          .limit(1);
+          await supabase
+            .from('call_logs')
+            .update({ call_status: 'missed' })
+            .eq('conversation_id', conversationId)
+            .eq('caller_id', currentUserId)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-        setCallState('idle');
-        setIsInCall(false);
-        setCallConfig(null);
-        toast({ title: 'No answer', description: 'The call was not answered' });
-      }, 35000);
+          setCallState('idle');
+          setIsInCall(false);
+          setCallConfig(null);
+          toast({ title: 'No answer', description: 'The call was not answered' });
+        }, 35000);
+      }
     } catch (error) {
       console.error('Error starting call:', error);
       stopAllRingtones();

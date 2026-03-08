@@ -11,6 +11,7 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAgoraCall } from "@/hooks/useAgoraCall";
 import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
 import AgoraCallScreen from "@/components/AgoraCallScreen";
+import GroupCallScreen from "@/components/GroupCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
@@ -117,6 +118,7 @@ const Chat = () => {
     acceptCall,
     declineCall,
     endCall,
+    inviteToCall,
     isVideoCall,
     incomingCall,
     isInCall,
@@ -1173,9 +1175,21 @@ const Chat = () => {
         onDecline={declineCall}
       />
 
-      {/* Agora Call Screen */}
+      {/* Call Screen - Group or 1-on-1 */}
       <AnimatePresence>
-        {isInCall && (
+        {isInCall && isGroupChat && (
+          <GroupCallScreen
+            callConfig={callConfig}
+            callState={callState}
+            isVideoCall={isVideoCall}
+            currentUserId={currentUserId}
+            onEndCall={endCall}
+            onInviteUsers={inviteToCall}
+            groupId={groupId}
+            conversationId={conversationId}
+          />
+        )}
+        {isInCall && !isGroupChat && (
           <AgoraCallScreen
             callConfig={callConfig}
             callState={callState}
