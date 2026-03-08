@@ -56,7 +56,7 @@ export function useE2E(currentUserId: string) {
     const cached = publicKeyCacheRef.current.get(userId);
     if (cached) return cached;
 
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("user_public_keys")
       .select("public_key")
       .eq("user_id", userId)
