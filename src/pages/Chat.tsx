@@ -30,6 +30,7 @@ import VoiceMessagePlayer from "@/components/VoiceMessagePlayer";
 import ChatImage from "@/components/ChatImage";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
+import { useE2E } from "@/hooks/useE2E";
 import { format, isSameDay } from "date-fns";
 
 interface Reaction {
