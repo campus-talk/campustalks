@@ -33,7 +33,7 @@ export function useE2E(currentUserId: string) {
           privateKey = newPrivateKey;
 
           // Store public key in database
-          await supabase.from("user_public_keys").upsert({
+          await (supabase as any).from("user_public_keys").upsert({
             user_id: currentUserId,
             public_key: serializePublicKey(publicKeyJwk),
             updated_at: new Date().toISOString(),
