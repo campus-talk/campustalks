@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
-import { MessageSquare, Users, Phone, User } from "lucide-react";
+import { MessageSquare, Phone, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/stores/appStore";
