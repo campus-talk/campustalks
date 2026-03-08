@@ -118,7 +118,6 @@ const AppShell = () => {
 
   const navItems = useMemo(() => [
     { icon: MessageSquare, label: "Chats", path: "/conversations", badge: totalUnreadMessages },
-    { icon: Users, label: "Groups", path: "/groups", badge: 0 },
     { icon: Phone, label: "Calls", path: "/calls", badge: 0 },
     { icon: User, label: "Account", path: "/settings", badge: 0 },
   ], [totalUnreadMessages]);
