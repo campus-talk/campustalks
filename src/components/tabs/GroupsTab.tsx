@@ -12,8 +12,8 @@ import { useScrollPosition } from "@/hooks/useScrollPosition";
 const GroupsTab = memo(() => {
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [createGroupOpen, setCreateGroupOpen] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
+
   
   // Preserve scroll position across tab switches
   useScrollPosition('groups-tab', scrollRef);
