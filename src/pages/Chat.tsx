@@ -11,6 +11,7 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAgoraCall } from "@/hooks/useAgoraCall";
 import IncomingCallModalJitsi from "@/components/IncomingCallModalJitsi";
 import AgoraCallScreen from "@/components/AgoraCallScreen";
+import GroupCallScreen from "@/components/GroupCallScreen";
 import MessageContextMenu from "@/components/MessageContextMenu";
 import DeleteMessageDialog from "@/components/DeleteMessageDialog";
 import MentionPicker from "@/components/MentionPicker";
